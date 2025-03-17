@@ -3,13 +3,14 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 import { Provider as StoreProvider } from 'react-redux';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { PaperProvider } from 'react-native-paper';
 // import store from '../redux/store';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -19,21 +20,38 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    const loadApp = async () => {
+      try {
+        // Simulate additional loading time
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setIsReady(true);
+        SplashScreen.hideAsync();
+      }
+    };
+
     if (loaded) {
-      SplashScreen.hideAsync();
+      loadApp();
     }
   }, [loaded]);
 
-  if (!loaded) {
-    return null;
+  if (!isReady) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#E91E63" />
+      </View>
+    );
   }
 
   return (
-  <SafeAreaProvider>
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      {/* <StoreProvider store={}> */}
+    <SafeAreaProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        {/* <StoreProvider store={store}> */}
         <PaperProvider>
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -42,8 +60,17 @@ export default function RootLayout() {
           </Stack>
           <StatusBar style="auto" />
         </PaperProvider>
-      {/* </StoreProvider> */}
-    </ThemeProvider>
+        {/* </StoreProvider> */}
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff', 
+  },
+});
