@@ -3,10 +3,13 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import 'react-native-reanimated';
-
+import { Provider as StoreProvider } from 'react-redux';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { PaperProvider } from 'react-native-paper';
+// import store from '../redux/store';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -28,12 +31,19 @@ export default function RootLayout() {
   }
 
   return (
+  <SafeAreaProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
+      {/* <StoreProvider store={}> */}
+        <PaperProvider>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="(screens)" options={{ headerShown: false }} />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <StatusBar style="auto" />
+        </PaperProvider>
+      {/* </StoreProvider> */}
     </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
