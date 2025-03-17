@@ -8,11 +8,9 @@ import 'react-native-reanimated';
 import { Provider as StoreProvider } from 'react-redux';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { PaperProvider } from 'react-native-paper';
-// import store from '../redux/store';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Image } from 'react-native';
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -31,18 +29,18 @@ export default function RootLayout() {
         console.warn(e);
       } finally {
         setIsReady(true);
-        SplashScreen.hideAsync();
       }
     };
 
     if (loaded) {
-      loadApp();
+      loadApp().then(() => SplashScreen.hideAsync());
     }
   }, [loaded]);
 
   if (!isReady) {
     return (
       <View style={styles.loadingContainer}>
+        <Image source={require('..//assets/images/splash-icon.jpg')} style={styles.splashImage} />
         <ActivityIndicator size="large" color="#E91E63" />
       </View>
     );
@@ -72,5 +70,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff', 
+  },
+  splashImage: {
+    width: 100, 
+    height: 100, 
+    marginBottom: 20,
+    resizeMode: 'contain',
   },
 });
