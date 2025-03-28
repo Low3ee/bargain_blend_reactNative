@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "bargainBlend",
-    "slug": "bargainBlend",
+    "slug": "bargain-blend",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -15,7 +15,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.low3ee.bargainblend"
     },
     "web": {
       "bundler": "metro",
@@ -36,6 +37,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "ad36358f-2fa6-412a-8844-df0a692facef"
+      }
+    },
+    "owner": "low3ee"
   }
 }

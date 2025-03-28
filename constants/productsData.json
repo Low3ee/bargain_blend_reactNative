@@ -1,0 +1,139 @@
+[
+  {
+    "id": "1",
+    "name": "Leather Jacket",
+    "price": "129.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "A stylish and comfortable leather jacket, perfect for casual outings or a night out.",
+    "categoryId": "1",
+    "rating": 3.5
+  },
+  {
+    "id": "2",
+    "name": "Denim Jeans",
+    "price": "59.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "Classic blue denim jeans with a modern fit for all-day comfort and style.",
+    "categoryId": "2",
+    "rating": 5
+  },
+  {
+    "id": "3",
+    "name": "Sunglasses",
+    "price": "89.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "Trendy sunglasses with UV protection, ideal for sunny days and enhancing your look.",
+    "categoryId": "3",
+    "rating": 3.8
+  },
+  {
+    "id": "4",
+    "name": "Polo Shirt",
+    "price": "39.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "A timeless polo shirt made from breathable cotton fabric, perfect for casual or semi-formal settings.",
+    "categoryId": "4",
+    "rating": 4
+  },
+  {
+    "id": "5",
+    "name": "Sports Sneakers",
+    "price": "79.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "Comfortable and durable sports sneakers designed for both fashion and functionality.",
+    "categoryId": "5",
+    "rating": 5
+  },
+  {
+    "id": "6",
+    "name": "Wool Coat",
+    "price": "199.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "A luxurious wool coat that combines warmth and sophistication for the colder months.",
+    "categoryId": "1",
+    "rating": 2.5
+  },
+  {
+    "id": "7",
+    "name": "Casual Hoodie",
+    "price": "49.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "A cozy hoodie perfect for layering on cool days, offering both comfort and style.",
+    "categoryId": "4",
+    "rating": 4
+  },
+  {
+    "id": "8",
+    "name": "Leather Wallet",
+    "price": "39.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "A premium leather wallet with ample space for your essentials, combining elegance and practicality.",
+    "categoryId": "3",
+    "rating": 5
+  },
+  {
+    "id": "9",
+    "name": "Chinos Pants",
+    "price": "49.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "Versatile chinos that can be dressed up or down, offering a perfect fit and comfort.",
+    "categoryId": "2",
+    "rating": 2.5
+  },
+  {
+    "id": "10",
+    "name": "Crew Neck T-shirt",
+    "price": "24.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "A classic crew neck t-shirt made from soft cotton, ideal for layering or wearing on its own.",
+    "categoryId": "4"
+    ,
+    "rating": 5
+  },
+  {
+    "id": "11",
+    "name": "Blazer Jacket",
+    "price": "159.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "A sleek and stylish blazer, perfect for business meetings or formal events.",
+    "categoryId": "1",
+    "rating": 4
+  },
+  {
+    "id": "12",
+    "name": "Wide Brim Hat",
+    "price": "29.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "A fashionable wide-brim hat that adds a touch of elegance to your summer look.",
+    "categoryId": "3",
+    "rating": 5
+  },
+  {
+    "id": "13",
+    "name": "Flannel Shirt",
+    "price": "39.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "A comfortable and warm flannel shirt, ideal for layering in cooler weather.",
+    "categoryId": "4",
+    "rating": 4
+  },
+  {
+    "id": "14",
+    "name": "Tote Bag",
+    "price": "34.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "A spacious and stylish tote bag, perfect for carrying your daily essentials.",
+    "categoryId": "3",
+    "rating": 4
+  },
+  {
+    "id": "15",
+    "name": "Combat Boots",
+    "price": "119.99",
+    "image": "https://tshirt.pictures/api/v1/tshirt.png?shirtColour=697689&bgColour=D9E3F0&slogan=tshirt.pictures&sloganColour=ffffff&logo=f553&logoColour=ffffff&aspectRatio=1:1",
+    "description": "Durable combat boots designed for rugged use while adding a bold statement to your outfit.",
+    "categoryId": "5"
+    ,
+    "rating": 2.8
+  }
+]

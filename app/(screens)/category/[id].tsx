@@ -1,24 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, FlatList, Text, Image, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
-import { getProducts, Product } from '@/app/services/productService';  
-import Header from '@/components/Header'; 
-import SkeletonLoader from '@/components/SkeletonLoader'; 
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { getProductsByCategory, Product } from '@/app/services/productService';
+import Header from '@/components/Header';
+import SkeletonLoader from '@/components/SkeletonLoader';
 
 const ProductsScreen: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
+  const { id } = useLocalSearchParams(); // Get category ID from params
+  const router = useRouter();
+
+  const [products, setProducts] = useState<Product[]>([]); // All products for the category
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]); // Filtered products for search
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter(); 
 
-  // Function to fetch products
+  // Function to fetch products by category
   const fetchProducts = async () => {
     setLoading(true);
     setError(null);  // Clear previous errors
     try {
-      const fetchedProducts = await getProducts(); // Fetch all products
-      console.log("Fetched products:", fetchedProducts); // Log fetched products for debugging
+      const fetchedProducts = await getProductsByCategory(id.toString()); // Fetch products by category ID
       setProducts(fetchedProducts);  // Set all products state
+      setFilteredProducts(fetchedProducts);  // Initialize filtered products with all fetched products
     } catch (err) {
       setError('Failed to fetch products');
       console.error('Error fetching products:', err);
@@ -29,29 +32,25 @@ const ProductsScreen: React.FC = () => {
 
   useEffect(() => {
     fetchProducts(); // Fetch products when the component mounts
-  }, []); // Empty dependency array means it will run only once
+  }, [id]);
 
-  // Handle search query input and filter products
+  // Function to handle search input
   const handleSearch = (query: string) => {
     const filtered = products.filter((product) =>
-      product.name.toLowerCase().includes(query.toLowerCase())
+      product.name.toLowerCase().includes(query.toLowerCase()) // Case-insensitive search
     );
-    setProducts(filtered);
+    setFilteredProducts(filtered); // Update filtered products
   };
 
-  // Render product item
+  // Render each product item
   const renderItem = ({ item }: { item: Product }) => (
     <TouchableOpacity
       style={styles.productCard}
-      onPress={() => router.push(`/product/${item.id}`)}
+      onPress={() => router.push(`/product/${item.id}`)} // Navigate to product details screen
     >
-      <Image 
-        source={{ uri: 'https://via.placeholder.com/150' }} // Placeholder image
-        style={styles.productImage} 
-      />
+      <Image source={{ uri: item.image }} style={styles.productImage} />
       <Text style={styles.productName}>{item.name}</Text>
       <Text style={styles.productPrice}>{`$${item.price}`}</Text>
-      <Text style={styles.productDescription}>{item.description}</Text>
     </TouchableOpacity>
   );
 
@@ -61,7 +60,7 @@ const ProductsScreen: React.FC = () => {
       <View style={styles.container}>
         <Header onSearch={handleSearch} />
         <FlatList
-          data={[...Array(10)]} // Simulate 10 skeleton loaders
+          data={[...Array(10)]} // Simulate skeleton loaders
           renderItem={() => <SkeletonLoader />}
           keyExtractor={(item, index) => String(index)}
           contentContainerStyle={styles.productList}
@@ -86,7 +85,7 @@ const ProductsScreen: React.FC = () => {
   }
 
   // Handle empty list gracefully
-  if (products.length === 0) {
+  if (filteredProducts.length === 0) {
     return (
       <View style={styles.container}>
         <Header onSearch={handleSearch} />
@@ -95,11 +94,12 @@ const ProductsScreen: React.FC = () => {
     );
   }
 
+  // Main content: Render filtered products
   return (
     <View style={styles.container}>
       <Header onSearch={handleSearch} />
       <FlatList
-        data={products}
+        data={filteredProducts} // Use filtered products for search results
         renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.productList}
@@ -114,7 +114,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f8f8',
-    paddingTop: 10,
   },
   productList: {
     padding: 10,
@@ -148,11 +147,6 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 14,
     color: '#333',
-  },
-  productDescription: {
-    fontSize: 12,
-    color: '#777',
-    marginTop: 5,
   },
   errorText: {
     textAlign: 'center',
