@@ -8,7 +8,7 @@ export interface Category {
 }
 
 const BASE_URL = 'http://localhost:3000/api/category'; // Replace with your actual API URL
-
+  
 export const categoryService = {
     async getCategories(): Promise<Category[]> {
         try {

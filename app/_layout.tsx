@@ -10,6 +10,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { store } from '@/store';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -49,7 +50,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        {/* <StoreProvider store={store}> */}
+        <StoreProvider store={store}>
         <PaperProvider>
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -58,7 +59,7 @@ export default function RootLayout() {
           </Stack>
           <StatusBar style="auto" />
         </PaperProvider>
-        {/* </StoreProvider> */}
+        </StoreProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

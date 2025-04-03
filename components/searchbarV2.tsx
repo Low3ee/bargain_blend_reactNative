@@ -1,7 +1,10 @@
-// SearchBar.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, TextInput, TouchableOpacity, Modal, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '@/store'; // Adjust the import to your path
+import { setCartItems } from '@/store/cartSlice'; // Import the action to update cart items
+import { getCartItems } from '@/app/utils/cartStorage'; 
 
 interface Props {
   onSearch: (query: string) => void;
@@ -10,8 +13,27 @@ interface Props {
 const SearchBar: React.FC<Props> = ({ onSearch }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterVisible, setFilterVisible] = useState(false);
+  const dispatch = useDispatch();
 
-  // Handle search input
+  // Get cart items from Redux store
+  const cartItems = useSelector((state: RootState) => state.cart.cartItems);
+  const cartCount = cartItems.length;
+
+  // Function to update the cart items in Redux store
+  const updateCartItems = async () => {
+    const items = await getCartItems(); // Fetch cart items
+    dispatch(setCartItems(items)); // Dispatch to Redux store
+  };
+
+  useEffect(() => {
+    updateCartItems(); // Initialize the cart items when component mounts
+    console.log(cartCount);
+    // Optional: Listen for cart updates every 5 seconds or based on events
+    const interval = setInterval(updateCartItems, 5000); // Example, adjust as needed
+
+    return () => clearInterval(interval); // Clean up the interval when the component unmounts
+  }, []);
+
   const handleSearch = () => {
     onSearch(searchQuery);
   };
@@ -31,6 +53,16 @@ const SearchBar: React.FC<Props> = ({ onSearch }) => {
           <MaterialCommunityIcons name="magnify" size={24} color="black" />
         </TouchableOpacity>
       </View>
+
+      {/* Cart Button */}
+      <TouchableOpacity style={styles.cartButton}>
+        <MaterialCommunityIcons name="cart" size={24} color="#000" />
+        {cartCount > 0 && (
+  <View style={styles.cartCount}>
+    <Text style={styles.cartCountText}>{cartCount}</Text>
+  </View>
+)}
+      </TouchableOpacity>
 
       {/* Filter Button to Show Popup */}
       <TouchableOpacity onPress={() => setFilterVisible(true)} style={styles.filterButton}>
@@ -52,8 +84,7 @@ const SearchBar: React.FC<Props> = ({ onSearch }) => {
             <TouchableOpacity
               onPress={() => {
                 setFilterVisible(false);
-                // Assume you have a prop or callback function for applying price filters
-                onSearch('low'); // This would be the actual logic for filtering low to high
+                onSearch('low'); // Price filter logic
               }}
               style={styles.filterOption}
             >
@@ -63,7 +94,7 @@ const SearchBar: React.FC<Props> = ({ onSearch }) => {
             <TouchableOpacity
               onPress={() => {
                 setFilterVisible(false);
-                onSearch('high'); // This would be the actual logic for filtering high to low
+                onSearch('high'); // Price filter logic
               }}
               style={styles.filterOption}
             >
@@ -107,6 +138,26 @@ const styles = StyleSheet.create({
   },
   searchButton: {
     padding: 5,
+  },
+  cartButton: {
+    marginLeft: 10,
+    position: 'relative',
+  },
+  cartCount: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: 'red',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cartCountText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   filterButton: {
     marginLeft: 10,
