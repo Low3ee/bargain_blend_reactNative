@@ -1,5 +1,5 @@
 export interface Product {
-    image_url: string;
+  image_url: string;
   id: string;
   name: string;
   description: string;
@@ -8,8 +8,8 @@ export interface Product {
   categoryId: string;
 }
 
-const BASE_URL = "http://192.168.68.152:3000/api";
-const IMAGE_URL = "http://192.168.68.152:3000/api/image"; // Base URL for images
+const BASE_URL = "http://localhost:3000/api";
+const IMAGE_URL = "http://localhost:3000/api/image"; // Base URL for images
 const BYPASS_TUNNEL_HEADER = 'ngrok-skip-browser-warning';
 const HEADER_VALUE = 'your-custom-value'; // Set your custom value here
 
@@ -61,6 +61,18 @@ export async function getProduct(id: string): Promise<Product> {
   } catch (error) {
     console.error("Error fetching product:", error);
     throw error;
+  }
+}
+
+export async function getProductStock(id: string): Promise<number> {
+  try {
+    const res = await fetch(`${BASE_URL}/products/stock/${id}`);
+    if (!res.ok) throw new Error('Failed to fetch stock');
+    const { stock } = await res.json();      // assume { stock: number }
+    return stock;
+  } catch (err) {
+    console.error('Error fetching product stock:', err);
+    return 1;
   }
 }
 

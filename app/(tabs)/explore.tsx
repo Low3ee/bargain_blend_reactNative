@@ -14,9 +14,11 @@ const Explore: React.FC = () => {
   // Fetch categories from the API when the component mounts
   useEffect(() => {
     const fetchCategories = async () => {
+
       setLoading(true);
       setError(null);
       try {
+        console.log('try block')
         const data = await categoryService.getCategories();
         setCategories(data); // Set fetched categories
       } catch (err) {

@@ -1,6 +1,6 @@
 import { CartItem } from '@/app/utils/cartStorage';
 
-const API_URL = 'http://192.168.68.152:3000/api/cart';
+const API_URL = 'http://localhost:3000/api/cart';
 
 // Function to sync cart with backend (called on exit or logout)
 export const syncCartWithBackend = async (cartItems: CartItem[]): Promise<void> => {

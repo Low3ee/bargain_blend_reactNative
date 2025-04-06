@@ -3,13 +3,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Define the CartItem type
 export interface CartItem {
   id: number;
+  stock?: number;
   name: string;
-  price: number;  // price as number for easier arithmetic
+  price: number;
   image: string;
   quantity: number;
 }
 
-// Key for storing cart items in AsyncStorage
 const CART_KEY = 'cartItems';
 
 // Function to get cart items from AsyncStorage

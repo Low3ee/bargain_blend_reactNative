@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Dimensions, Alert } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import { getProduct } from '@/app/services/productService'; // Import your product service
+import { useRouter } from 'expo-router'; // Import router for navigation
 
 const screenHeight = Dimensions.get('window').height;
 const screenWidth = Dimensions.get('window').width;
@@ -23,6 +24,10 @@ const ProductDetailsScreen: React.FC = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState<boolean>(true); // Handle loading state
   const [error, setError] = useState<string | null>(null); // Handle error state
+  const router = useRouter(); // Hook for navigation
+
+  // Check if user is authenticated (e.g., by checking token in local storage)
+  const isAuthenticated = Boolean(localStorage.getItem('auth_token')); // Modify according to your storage method
 
   useEffect(() => {
     // Fetch the product by ID when the component mounts
@@ -64,6 +69,30 @@ const ProductDetailsScreen: React.FC = () => {
     return stars;
   };
 
+  // Handle add to favorites action
+  const handleAddToFavorites = () => {
+    if (!isAuthenticated) {
+      Alert.alert('Authentication Required', 'You need to be logged in to add to favorites.', [
+        { text: 'Login', onPress: () => router.push('/authScreen') },
+        { text: 'Cancel' },
+      ]);
+      return;
+    }
+    Alert.alert('Added to Favorites');
+  };
+
+  // Handle add to cart action
+  const handleAddToCart = () => {
+    if (!isAuthenticated) {
+      Alert.alert('Authentication Required', 'You need to be logged in to add to cart.', [
+        { text: 'Login', onPress: () => router.push('/authScreen') },
+        { text: 'Cancel' },
+      ]);
+      return;
+    }
+    Alert.alert('Added to Cart');
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -86,10 +115,10 @@ const ProductDetailsScreen: React.FC = () => {
 
       {/* Bottom Action Buttons */}
       <View style={styles.bottomButtons}>
-        <TouchableOpacity style={styles.favoriteButton} onPress={() => alert('Added to Favorites')}>
+        <TouchableOpacity style={styles.favoriteButton} onPress={handleAddToFavorites}>
           <FontAwesome name="heart" size={20} color="white" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.addToCartButton} onPress={() => alert('Added to Cart')}>
+        <TouchableOpacity style={styles.addToCartButton} onPress={handleAddToCart}>
           <FontAwesome name="shopping-cart" size={18} color="white" style={styles.cartIcon} />
           <Text style={styles.addToCartText}>Add to Cart</Text>
         </TouchableOpacity>
