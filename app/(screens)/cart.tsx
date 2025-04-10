@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   FlatList,
   Dimensions,
-  Alert,
 } from 'react-native';
 import { IconButton, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -20,6 +19,7 @@ import {
 } from '@/app/utils/cartStorage';
 import { syncCartWithBackend } from '@/app/services/cartService';
 import { getProductStock } from '@/app/services/productService';
+import Toast from 'react-native-toast-message';
 import { router } from 'expo-router';
 
 const screenWidth = Dimensions.get('window').width;
@@ -31,7 +31,6 @@ const Cart: React.FC = () => {
 
   useEffect(() => {
     (async () => {
-      // Load cart items and their stock
       const raw = await getCartItems();
       const withStock = await Promise.all(
         raw.map(async item => {
@@ -39,10 +38,14 @@ const Cart: React.FC = () => {
           return { ...item, stock };
         })
       );
-      // Auto‑adjust quantities > stock
       const adjusted = withStock.map(item => {
         if (item.quantity > item.stock) {
           updateCartItemQuantityLocal(item.id, item.stock);
+          Toast.show({
+            type: 'info',
+            text1: 'Stock Adjusted',
+            text2: `Updated quantity for ${item.name} to available stock.`,
+          });
           return { ...item, quantity: item.stock };
         }
         return item;
@@ -55,7 +58,6 @@ const Cart: React.FC = () => {
     setItems(prev =>
       prev.map(item => {
         if (item.id.toString() !== id) return item;
-        // If out of stock, do nothing
         if (item.stock === 0) return item;
 
         const max = item.stock;
@@ -65,7 +67,11 @@ const Cart: React.FC = () => {
             : Math.max(item.quantity - 1, 1);
 
         if (newQty === item.quantity && type === 'increment') {
-          Alert.alert('Max stock reached', `Only ${max} available`);
+          Toast.show({
+            type: 'info',
+            text1: 'Max stock reached',
+            text2: `Only ${max} available.`,
+          });
         }
 
         updateCartItemQuantityLocal(item.id, newQty);
@@ -77,6 +83,11 @@ const Cart: React.FC = () => {
   const removeItem = (id: string) => {
     setItems(prev => prev.filter(i => i.id.toString() !== id));
     removeCartItemLocal(parseInt(id, 10));
+    Toast.show({
+      type: 'success',
+      text1: 'Removed',
+      text2: 'Item removed from cart.',
+    });
   };
 
   const calculateTotal = () =>
@@ -84,12 +95,23 @@ const Cart: React.FC = () => {
 
   const handleCheckout = async () => {
     if (!items.length) {
-      Alert.alert('Your cart is empty!');
+      Toast.show({
+        type: 'error',
+        text1: 'Your cart is empty!',
+      });
       return;
     }
-    await syncCartWithBackend(items);
-    // clearCartLocal();
-    router.push('/checkout');
+
+    try {
+      await syncCartWithBackend(items);
+      router.push('/checkout');
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Checkout Failed',
+        text2: 'Something went wrong. Try again.',
+      });
+    }
   };
 
   const renderItem = ({ item }: { item: CartItemWithStock }) => {
@@ -109,7 +131,7 @@ const Cart: React.FC = () => {
               <MaterialCommunityIcons
                 name="minus-circle"
                 size={28}
-                color={item.quantity <= 1 || outOfStock ? '#ccc' : 'red'}
+                color={item.quantity <= 1 || outOfStock ? '#ccc' : '#D6003A'}
               />
             </TouchableOpacity>
             <Text style={styles.quantityText}>{item.quantity}</Text>
@@ -120,14 +142,14 @@ const Cart: React.FC = () => {
               <MaterialCommunityIcons
                 name="plus-circle"
                 size={28}
-                color={item.quantity >= item.stock || outOfStock ? '#ccc' : 'green'}
+                color={item.quantity >= item.stock || outOfStock ? '#ccc' : '#198754'}
               />
             </TouchableOpacity>
           </View>
         </View>
         <IconButton
           icon="trash-can"
-          iconColor="red"
+          iconColor="#dc3545"
           size={28}
           onPress={() => removeItem(item.id.toString())}
         />
@@ -137,18 +159,32 @@ const Cart: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={items}
-        renderItem={renderItem}
-        keyExtractor={i => i.id.toString()}
-        contentContainerStyle={styles.list}
-      />
-      <View style={styles.footer}>
-        <Text style={styles.totalText}>Order Amount: ₱{calculateTotal()}</Text>
-        <Button mode="contained" style={styles.checkoutButton} onPress={handleCheckout}>
-          Checkout
-        </Button>
-      </View>
+      {items.length > 0 ? (
+        <FlatList
+          data={items}
+          renderItem={renderItem}
+          keyExtractor={i => i.id.toString()}
+          contentContainerStyle={styles.list}
+        />
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Your cart is empty</Text>
+          <TouchableOpacity onPress={() => router.push('/')}>
+            <Text style={styles.linkText}>Go back to shopping</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {items.length > 0 && (
+        <View style={styles.footer}>
+          <Text style={styles.totalText}>Order Amount: ₱{calculateTotal()}</Text>
+          <Button mode="contained" style={styles.checkoutButton} onPress={handleCheckout}>
+            Checkout
+          </Button>
+        </View>
+      )}
+
+      <Toast />
     </View>
   );
 };
@@ -159,16 +195,17 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9F9F9',
+    backgroundColor: '#F8F9FA',
     padding: 10,
     marginVertical: 5,
     borderRadius: 10,
+    elevation: 2,
   },
   outOfStockCard: {
     opacity: 0.5,
   },
   outOfStockText: {
-    color: 'red',
+    color: '#dc3545',
     fontWeight: 'bold',
     marginBottom: 4,
   },
@@ -179,7 +216,7 @@ const styles = StyleSheet.create({
   },
   productDetails: { flex: 1, marginLeft: 15 },
   productName: { fontSize: 16, fontWeight: 'bold' },
-  price: { color: 'red', fontSize: 16, fontWeight: 'bold' },
+  price: { color: '#D6003A', fontSize: 16, fontWeight: 'bold' },
   quantityContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -196,7 +233,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   totalText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  checkoutButton: { backgroundColor: '#fff', marginTop: 10, paddingVertical: 8, width: '90%' },
+  checkoutButton: {
+    backgroundColor: '#fff',
+    marginTop: 10,
+    paddingVertical: 8,
+    width: '90%',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  linkText: {
+    fontSize: 16,
+    color: '#D6003A',
+    textDecorationLine: 'underline',
+  },
 });
 
 export default Cart;

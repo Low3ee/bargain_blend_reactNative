@@ -1,7 +1,8 @@
 export interface Product {
-  image_url: string;
+  image: string;
   id: string;
   name: string;
+  rating: number;
   description: string;
   price: number;
   stock: number;
@@ -17,7 +18,7 @@ const HEADER_VALUE = 'your-custom-value'; // Set your custom value here
 function updateProductImage(product: Product): Product {
   return { 
     ...product, 
-    image_url: `${IMAGE_URL}/${product.image_url || 'placeholder.png'}`
+    image: `${IMAGE_URL}/${product.image || 'placeholder.png'}`
   };
 }
 
@@ -57,6 +58,7 @@ export async function getProduct(id: string): Promise<Product> {
     }
 
     const product: Product = await response.json();
+    console.log(product);
     return updateProductImage(product);
   } catch (error) {
     console.error("Error fetching product:", error);
@@ -68,7 +70,7 @@ export async function getProductStock(id: string): Promise<number> {
   try {
     const res = await fetch(`${BASE_URL}/products/stock/${id}`);
     if (!res.ok) throw new Error('Failed to fetch stock');
-    const { stock } = await res.json();      // assume { stock: number }
+    const { stock } = await res.json();
     return stock;
   } catch (err) {
     console.error('Error fetching product stock:', err);

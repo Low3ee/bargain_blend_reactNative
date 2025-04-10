@@ -1,11 +1,12 @@
 import { CartItem } from '@/app/utils/cartStorage';
+import { getUserInfoField } from '../utils/profileUtil';
 
 const API_URL = 'http://localhost:3000/api/cart';
 
 // Function to sync cart with backend (called on exit or logout)
 export const syncCartWithBackend = async (cartItems: CartItem[]): Promise<void> => {
   try {
-    if (cartItems.length === 0) return; // If the cart is empty, no need to sync
+    if (cartItems.length === 0) return;
 
     const response = await fetch(`${API_URL}/sync`, {
       method: 'POST',
@@ -28,10 +29,10 @@ export const syncCartWithBackend = async (cartItems: CartItem[]): Promise<void> 
 };
 
 // Function to perform checkout on the server
-export const checkoutCart = async (cartItems: CartItem[], userId: string): Promise<void> => {
+export const checkoutCart = async (cartItems: CartItem[]): Promise<void> => {
   try {
     if (cartItems.length === 0) return;
-
+    const userId = getUserInfoField('id');
     const response = await fetch(`${API_URL}/checkout`, {
       method: 'POST',
       headers: {

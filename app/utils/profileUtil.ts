@@ -1,102 +1,58 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-export const getProfileDetails = async () => {
-    const device = Platform.OS;
-  
-    let userInfo: string | null = null;
-  
-    if (device === 'web') {
-      userInfo = localStorage.getItem('user_info');
-    }
-  
-    if (device === 'android' || device === 'ios') {
-      userInfo = await AsyncStorage.getItem('user_info');
-    }
-  
-    if (userInfo) {
-      try {
-        return JSON.parse(userInfo);  // Parse the string into an object
-      } catch (error) {
-        console.error("Failed to parse user info:", error);
-        return null;
-      }
-    }
-  
-    return null;
-  };
-  
+// Helper to determine if platform is web
+const isWeb = Platform.OS === 'web';
 
+// Get storage method based on platform
 export const getStorage = async () => {
-  const device = Platform.OS;
-
-  if (device === 'web') {
-    return localStorage;
-  }
-
-  return AsyncStorage;
+  return isWeb ? localStorage : AsyncStorage;
 };
 
-export const getName = async () => {
-    if (Platform.OS === 'web') {
-      const info = localStorage.getItem('user_info');
-      if (info) {
-        const parsedInfo = JSON.parse(info); // Parse the string to an object
-        return parsedInfo.fname + ' ' + parsedInfo.lname;
-      }
-    } else {
-      try {
-        const info = await AsyncStorage.getItem('user_info');
-        if (info) {
-          const parsedInfo = JSON.parse(info);
-          return parsedInfo.fname + ' ' + parsedInfo.lname;
-        }
-      } catch (error) {
-        console.error('Error getting user info from AsyncStorage:', error);
-      }
-    }
-    return '';
-  };
-  
+// Unified method to get item from storage
+const getItem = async (key: string): Promise<string | null> => {
+  try {
+    return isWeb ? localStorage.getItem(key) : await AsyncStorage.getItem(key);
+  } catch (error) {
+    console.error(`Error getting "${key}" from storage:`, error);
+    return null;
+  }
+};
 
-  export const getToken = async () => {
-    if (Platform.OS === 'web') {
-      const info = localStorage.getItem('authToken');
-      if (info) {
-        return info
-      }
-    } else {
-      try {
-        const info = await AsyncStorage.getItem('authToken');
-        if (info) {
-          
-          return info
-        }
-      } catch (error) {
-        console.error('Error getting user token from AsyncStorage:', error);
-      }
-    }
-    return '';
-  };
+// Parse JSON safely
+const parseJSON = (data: string | null) => {
+  try {
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.error('JSON parsing error:', error);
+    return null;
+  }
+};
 
+// Get whole user_info object
+export const getProfileDetails = async () => {
+  const data = await getItem('user_info');
+  return parseJSON(data);
+};
 
-  export const getDetails= async () => {
-    if (Platform.OS === 'web') {
-      const info = localStorage.getItem('user_info');
-      if (info) {
-        const parsedInfo = JSON.parse(info); 
-        return parsedInfo;
-      }
-    } else {
-      try {
-        const info = await AsyncStorage.getItem('user_info');
-        if (info) {
-          const parsedInfo = JSON.parse(info);
-          return parsedInfo;
-        }
-      } catch (error) {
-        console.error('Error getting user info from AsyncStorage:', error);
-      }
-    }
-    return '';
-  };
+// Get specific field from user_info
+export const getUserInfoField = async (field: string): Promise<any> => {
+  const userInfo = await getProfileDetails();
+  return userInfo?.[field] ?? null;
+};
+
+// Get user's full name
+export const getName = async (): Promise<string> => {
+  const fname = await getUserInfoField('fname');
+  const lname = await getUserInfoField('lname');
+  return fname && lname ? `${fname} ${lname}` : '';
+};
+
+// Get auth token
+export const getToken = async (): Promise<string | null> => {
+  const token = await getItem('authToken');
+  return token ?? null;
+};
+
+// Alias for getProfileDetails (to maintain compatibility if needed)
+export const getDetails = getProfileDetails;

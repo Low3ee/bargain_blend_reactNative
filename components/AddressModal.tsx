@@ -104,7 +104,7 @@ const AddressModal: React.FC<AddressModalProps> = ({
         ));
       } else {
         const created = await AddressService.createAddress({
-          userId, street, city, state: stateField, zip, country,
+          street, city, state: stateField, zip, country,
           status: 'active', primary: addresses.length === 0,
         });
         setAddresses(prev => [

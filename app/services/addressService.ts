@@ -1,21 +1,28 @@
+import { getUserInfoField } from "../utils/profileUtil";
+
 const API_BASE_URL = "http://localhost:3000/api/addresses";
 
 class AddressService {
   // Create a new address
   async createAddress(addressData: {
-    userId: number;
     street: string;
     city: string;
     state: string;
     zip: string;
     country: string;
     status: "active";
-    primary?: boolean; // Optional primary field
+    primary?: boolean;
   }) {
     try {
-      // If the address is marked as primary, set others to not primary
+      const userId = await getUserInfoField("id");
+
+      if (!userId) {
+        throw new Error("User ID not found in storage.");
+      }
+
+      // If the address is marked as primary, update others to not primary
       if (addressData.primary) {
-        await this.updateOtherAddressesToNotPrimary(addressData.userId);
+        await this.updateOtherAddressesToNotPrimary(userId);
       }
 
       const response = await fetch(API_BASE_URL, {
@@ -23,7 +30,7 @@ class AddressService {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(addressData),
+        body: JSON.stringify({ ...addressData, userId }),
       });
 
       if (!response.ok) {
@@ -38,7 +45,6 @@ class AddressService {
     }
   }
 
-  // Helper method to update other addresses to not primary
   async updateOtherAddressesToNotPrimary(userId: number) {
     try {
       const response = await fetch(`${API_BASE_URL}/update-primary/${userId}`, {
@@ -61,7 +67,6 @@ class AddressService {
     }
   }
 
-  // Get all addresses for a specific user
   async getAddressesByUserId(userId: number) {
     try {
       const response = await fetch(`${API_BASE_URL}/user/${userId}`);
@@ -78,7 +83,6 @@ class AddressService {
     }
   }
 
-  // Get a specific address by ID
   async getAddressById(id: number) {
     try {
       const response = await fetch(`${API_BASE_URL}/${id}`);
@@ -95,21 +99,28 @@ class AddressService {
     }
   }
 
-  // Update an existing address by ID
-  async updateAddress(id: number, addressData: {
-    userId: number;
-    street: string;
-    city: string;
-    state: string;
-    zip: string;
-    country: string;
-    status: "PRIMARY" | "RESERVE";
-    primary?: boolean;
-  }) {
+  async updateAddress(
+    id: number,
+    addressData: {
+      userId?: number;
+      street: string;
+      city: string;
+      state: string;
+      zip: string;
+      country: string;
+      status: "PRIMARY" | "RESERVE";
+      primary?: boolean;
+    }
+  ) {
     try {
-      // If the address is set to primary, update other addresses to not primary
+      const userId = addressData.userId ?? (await getUserInfoField("id"));
+
+      if (!userId) {
+        throw new Error("User ID not found in storage.");
+      }
+
       if (addressData.primary) {
-        await this.updateOtherAddressesToNotPrimary(addressData.userId);
+        await this.updateOtherAddressesToNotPrimary(userId);
       }
 
       const response = await fetch(`${API_BASE_URL}/${id}`, {
@@ -117,7 +128,7 @@ class AddressService {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(addressData),
+        body: JSON.stringify({ ...addressData, userId }),
       });
 
       if (!response.ok) {
@@ -132,7 +143,6 @@ class AddressService {
     }
   }
 
-  // Delete an address by ID
   async deleteAddress(id: number) {
     try {
       const response = await fetch(`${API_BASE_URL}/${id}`, {

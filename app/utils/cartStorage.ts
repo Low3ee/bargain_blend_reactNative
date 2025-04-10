@@ -34,24 +34,32 @@ export const saveCart = async (cartItems: CartItem[]): Promise<void> => {
 };
 
 // Function to add an item to the cart (only update AsyncStorage)
-export const addToCartLocal = async (newItem: CartItem): Promise<void> => {
+export const addToCartLocal = async (
+  newItem: CartItem,
+  onLoginRequired?: () => void
+): Promise<boolean> => {
   try {
+    const userInfo = await AsyncStorage.getItem('user_info');
+
+    if (!userInfo) {
+      onLoginRequired?.();
+      return false;
+    }
+
     const existingCartItems = await getCartItems();
     const itemIndex = existingCartItems.findIndex((item) => item.id === newItem.id);
 
     if (itemIndex > -1) {
-      // If the item already exists, update the quantity
       existingCartItems[itemIndex].quantity += newItem.quantity;
     } else {
-      // If the item doesn't exist in the cart, add it
       existingCartItems.push(newItem);
     }
 
-    // Save the updated cart items to AsyncStorage
     await saveCart(existingCartItems);
-    console.log('Item added to cart locally');
+    return true;
   } catch (error) {
     console.error('Error adding item to cart', error);
+    return false;
   }
 };
 
@@ -120,9 +128,9 @@ export const checkoutCartLocal = async (): Promise<boolean> => {
       return false; // Return false if cart is empty
     }
 
-    // Perform any necessary local actions for checkout
-    // Example: Clear the cart from AsyncStorage after checkout
-    await clearCartLocal();
+    // // Perform any necessary local actions for checkout
+    // // Example: Clear the cart from AsyncStorage after checkout
+    // await clearCartLocal();
 
     // Optionally, you can save the checkout data to your database or API at this point
 

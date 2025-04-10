@@ -4,15 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerUser, loginUser } from '@/app/services/authService';
-import Toast from 'react-native-toast-message'; // Import toast for notifications
+import Toast from 'react-native-toast-message';
 
 const AuthScreen = () => {
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [fname, setFname] = useState(''); // First name
-    const [lname, setLname] = useState(''); // Last name
-    const [username, setUsername] = useState(''); // Username
+    const [fname, setFname] = useState('');
+    const [lname, setLname] = useState('');
+    const [username, setUsername] = useState('');
     const [loading, setLoading] = useState(false);
 
     // Toggle between Sign In and Sign Up views
@@ -91,22 +91,21 @@ const AuthScreen = () => {
         }
     };
 
-    
-useEffect(() => {
-    const checkLoggedIn = async () => {
-      let token: string | null = null;
-      if (Platform.OS === 'web') {
-        token = localStorage.getItem('authToken');
-      } else {
-        token = await AsyncStorage.getItem('authToken');
-      }
-      if (token) {
-        router.push('/');
-      }
-    };
-  
-    checkLoggedIn();
-  }, []);
+    useEffect(() => {
+        const checkLoggedIn = async () => {
+            let token: string | null = null;
+            if (Platform.OS === 'web') {
+                token = localStorage.getItem('authToken');
+            } else {
+                token = await AsyncStorage.getItem('authToken');
+            }
+            if (token) {
+                router.push('/');
+            }
+        };
+
+        checkLoggedIn();
+    }, []);
 
     return (
         <SafeAreaView style={styles.container}>
@@ -236,23 +235,23 @@ const styles = StyleSheet.create({
         fontSize: 24,
         textAlign: 'center',
         fontWeight: 'bold',
-        color: '#333',
+        color: 'black',
     },
     buttonContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 20,
-        marginBottom: 20, // Added spacing below buttons
+        marginBottom: 20,
     },
     signInButton: {
         fontSize: 20,
-        color: '#3498db',
+        color: '#ff4d4d', // Red color
         marginHorizontal: 10,
     },
     signUpButton: {
         fontSize: 20,
-        color: '#3498db',
+        color: '#ff4d4d', // Red color
         marginHorizontal: 10,
     },
     separator: {
@@ -278,14 +277,14 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: '#ff4d4d', // Red border
         borderRadius: 8,
     },
     button: {
         paddingHorizontal: 24,
         paddingVertical: 12,
         borderRadius: 8,
-        backgroundColor: '#3498db',
+        backgroundColor: '#ff4d4d', // Red button
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,

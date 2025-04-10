@@ -22,7 +22,7 @@ export interface Order {
         Authorization: `Bearer ${token}`,
       },
     });
-    if (!response.ok) {
+    if (!response.ok) { 
       throw new Error('Failed to fetch orders');
     }
     const data = await response.json();

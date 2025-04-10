@@ -1,4 +1,4 @@
-// @ts-nocheck
+//@ts-nocheck
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -11,10 +11,12 @@ import {
   Button,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import AddressModal from '@/components/AddressModal';
 import { getProfileDetails, getName } from '../utils/profileUtil';
+import { removeAuthToken } from '../services/authService';
 
+const router = useRouter();
 const quickActions = [
   { icon: 'shopping-bag', label: 'Orders', route: '/orders', type: 'link' },
   { icon: 'shopping-cart', label: 'Cart', route: '/cart', type: 'link' },
@@ -24,7 +26,6 @@ const quickActions = [
 
 const menuItems = [
   { icon: 'map-marker', label: 'My Address', type: 'address' },
-  { icon: 'th-large', label: 'All Categories', route: '/categories', type: 'link' },
   {
     icon: 'file-text',
     label: 'Terms and Conditions',
@@ -139,11 +140,21 @@ const ProfileScreen: React.FC = () => {
   const currentItem = menuItems.find(i => i.type === modalContentType);
   useEffect(() => {
     const setProfileDeets = async () => {
-      name = await getName();
+      const name = await getName();
+  
+      if (!name) {
+        router.replace('/authScreen');
+        return;
+      }
       setUserName(name);
     };
-    setProfileDeets()
+  
+    setProfileDeets();
   }, []);
+  const handleLogOut = async() =>{
+    await removeAuthToken();
+    router.replace('/authScreen');
+  } 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* Header Section */}
@@ -197,6 +208,9 @@ const ProfileScreen: React.FC = () => {
             )}
           </TouchableOpacity>
         ))}
+        <TouchableOpacity onPress={handleLogOut} style={styles.menuItem}>
+          <Text style={styles.logOutText}>Logout</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Address Modal or Generic Modal */}
@@ -268,6 +282,11 @@ const styles = StyleSheet.create({
   },
   actionText: {
     color: 'white',
+    fontSize: 14,
+    marginTop: 5,
+  },
+  logOutText: {
+    color: 'red',
     fontSize: 14,
     marginTop: 5,
   },

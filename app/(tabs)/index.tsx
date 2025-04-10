@@ -10,10 +10,12 @@ import {
   Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import Toast from 'react-native-toast-message';
 import { getProducts, Product } from '@/app/services/productService';
 import { addToCartLocal, getCartItems, CartItem } from '@/app/utils/cartStorage';
 import Header from '@/components/Header';
 import SkeletonLoader from '@/components/SkeletonLoader';
+import LoginRequiredModal from '@/components/LogInRequiredModal';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -23,6 +25,8 @@ const ProductsScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [showOutOfStock, setShowOutOfStock] = useState(true);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const router = useRouter();
 
   const fetchProducts = async () => {
@@ -45,33 +49,75 @@ const ProductsScreen: React.FC = () => {
 
   const handleAddToCart = async (product: Product) => {
     const quantityToAdd = product.stock > 0 ? 1 : 0;
-
+  
     if (quantityToAdd > 0) {
       const newCartItem: CartItem = {
         id: parseInt(product.id),
         name: product.name,
         price: product.price,
-        image: product.image_url,
+        image: product.image, // Assuming product.image is your field
         quantity: quantityToAdd,
       };
-
-      await addToCartLocal(newCartItem);
-      fetchCartItems();
+  
+      const success = await addToCartLocal(newCartItem, () => setShowLoginModal(true));
+  
+      if (success) {
+        fetchCartItems();
+        Toast.show({
+          type: 'success',
+          text1: 'Added to Cart',
+          text2: `${product.name} has been added.`,
+          position: 'bottom',
+        });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Add to Cart Failed',
+          text2: 'Unable to add product to cart.',
+          position: 'bottom',
+        });
+      }
+    } else {
+      Toast.show({
+        type: 'error',
+        text1: 'Out of Stock',
+        text2: 'This product is out of stock.',
+        position: 'bottom',
+      });
     }
   };
-
+  
   useEffect(() => {
     fetchProducts();
     fetchCartItems();
   }, []);
-
-  const displayedProducts = showOutOfStock
+  
+  // Filter products based on the out-of-stock toggle
+  const availableProducts = showOutOfStock
     ? products
     : products.filter(product => product.stock > 0);
-
+  
+  // When the search query is non-empty, filter products by name or description.
+  // When empty, show all available products.
+  const filteredProducts = searchQuery.trim()
+    ? availableProducts.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.description.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : availableProducts;
+  
+  // If a search query is present, compute recommended products from the filtered products.
+  // For example, we choose the top 4 products by rating.
+  const recommendedProducts = searchQuery.trim()
+    ? [...filteredProducts]
+        .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+        .slice(0, 4)
+    : [];
+  
   const renderItem = ({ item }: { item: Product }) => {
     const isOutOfStock = item.stock === 0;
-
+  
     return (
       <TouchableOpacity
         style={[
@@ -81,24 +127,37 @@ const ProductsScreen: React.FC = () => {
         onPress={() => router.push(`/product/${item.id}`)}
         disabled={isOutOfStock}
       >
-        <Image source={{ uri: item.image_url }} style={styles.productImage} />
+        <Image source={{ uri: item.image }} style={styles.productImage} />
         <Text style={styles.productName}>{item.name}</Text>
         <Text style={styles.productPrice}>{`₱${item.price}`}</Text>
         <Text style={styles.productDescription}>{item.description}</Text>
-
+  
         {isOutOfStock ? (
           <Text style={styles.outOfStockLabel}>Out of Stock</Text>
         ) : (
-          <Button title="Add to Cart" onPress={() => handleAddToCart(item)} />
+          <></>
         )}
       </TouchableOpacity>
     );
   };
-
+  
+  // Render recommended products horizontally (only if there's a search query and recommendations exist)
+  const renderRecommendedItem = ({ item }: { item: Product }) => {
+    return (
+      <TouchableOpacity
+        style={styles.recommendationCard}
+        onPress={() => router.push(`/product/${item.id}`)}
+      >
+        <Image source={{ uri: item.image }} style={styles.recommendationImage} />
+        <Text style={styles.recommendationName}>{item.name}</Text>
+      </TouchableOpacity>
+    );
+  };
+  
   if (loading) {
     return (
       <View style={styles.container}>
-        <Header onSearch={() => {}} />
+        <Header onSearch={(query) => setSearchQuery(query)} />
         <FlatList
           data={[...Array(10)]}
           renderItem={() => <SkeletonLoader />}
@@ -107,43 +166,56 @@ const ProductsScreen: React.FC = () => {
       </View>
     );
   }
-
+  
   if (error) {
     return (
       <View style={styles.container}>
-        <Header onSearch={() => {}} />
+        <Header onSearch={(query) => setSearchQuery(query)} />
         <Text>{error}</Text>
       </View>
     );
   }
-
+  
   return (
     <View style={styles.container}>
-      <Header onSearch={() => {}} />
-
+      <Header onSearch={(query) => setSearchQuery(query)} />
       <View style={styles.toggleContainer}>
-        <TouchableOpacity
-          onPress={() => setShowOutOfStock(prev => !prev)}
-          style={styles.toggleButton}
-        >
-          <Text style={styles.toggleText}>
-            {showOutOfStock ? 'Hide Out of Stock Items' : 'Show Out of Stock Items'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
+  <TouchableOpacity
+    style={styles.toggleButton}
+    onPress={() => setShowOutOfStock(prev => !prev)}
+  >
+    <Text style={styles.toggleText}>
+      {showOutOfStock ? 'Hide' : 'Show'} Out of Stock Products
+    </Text>
+  </TouchableOpacity>
+</View>
+      {searchQuery.trim() !== '' && recommendedProducts.length > 0 && (
+        <View style={styles.recommendationContainer}>
+          <Text style={styles.recommendationTitle}>Recommended Products</Text>
+          <FlatList
+            data={recommendedProducts}
+            renderItem={renderRecommendedItem}
+            keyExtractor={(item) => item.id.toString()}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+          />
+        </View>
+      )}
+  
       <FlatList
-        key={`products-2-${showOutOfStock}`} // ensures FlatList re-renders when toggle changes
-        data={displayedProducts}
+        key={`products-2-${showOutOfStock}`} // ensures re-render when toggle changes
+        data={filteredProducts}
         renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
         numColumns={2}
         columnWrapperStyle={styles.columnWrapperStyle}
       />
+      <LoginRequiredModal visible={showLoginModal} onDismiss={() => setShowLoginModal(false)} />
+      <Toast />
     </View>
   );
 };
-
+  
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   columnWrapperStyle: {
@@ -198,6 +270,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
+  recommendationContainer: {
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  recommendationTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#333',
+  },
+  recommendationCard: {
+    marginRight: 10,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    padding: 8,
+    width: screenWidth * 0.4,
+    alignItems: 'center',
+  },
+  recommendationImage: {
+    width: '100%',
+    height: 100,
+    borderRadius: 8,
+  },
+  recommendationName: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: 5,
+    textAlign: 'center',
+  },
+  
 });
-
+  
 export default ProductsScreen;

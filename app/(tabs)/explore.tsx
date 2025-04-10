@@ -1,26 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity, Image, Dimensions, Text, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router'; 
-import { ThemedView } from '@/components/ThemedView'; 
+import {
+  StyleSheet,
+  View,
+  FlatList,
+  TouchableOpacity,
+  Image,
+  Text,
+  ActivityIndicator,
+  useWindowDimensions,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { ThemedView } from '@/components/ThemedView';
 import { Category, categoryService } from '../services/categoryService';
-const screenWidth = Dimensions.get('window').width;
 
 const Explore: React.FC = () => {
   const router = useRouter();
-  const [categories, setCategories] = useState<Category[]>([]); // State to hold categories
-  const [loading, setLoading] = useState<boolean>(false); // Loading state
-  const [error, setError] = useState<string | null>(null); // Error state
+  const { width: screenWidth } = useWindowDimensions();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch categories from the API when the component mounts
   useEffect(() => {
     const fetchCategories = async () => {
-
       setLoading(true);
       setError(null);
       try {
-        console.log('try block')
         const data = await categoryService.getCategories();
-        setCategories(data); // Set fetched categories
+        setCategories(data);
       } catch (err) {
         setError('Failed to load categories');
       } finally {
@@ -29,19 +35,24 @@ const Explore: React.FC = () => {
     };
 
     fetchCategories();
-  }, []); // Empty array ensures this effect runs only once when the component mounts
+  }, []);
 
-  // Function to render each category item
   const renderCategoryItem = ({ item }: { item: Category }) => (
     <TouchableOpacity
       style={[styles.card, { width: screenWidth * 0.44 }]}
-      onPress={() => router.push({
-        pathname: "/category/[id]",
-        params: { id: item.id }
-      })}
+      onPress={() =>
+        router.push({
+          pathname: '/category/[id]',
+          params: { id: item.id },
+        })
+      }
     >
       <View style={styles.cardContainer}>
-        <Image source={{ uri: 'https://via.placeholder.com/150' }} style={styles.cardImage} resizeMode="contain" />
+        <Image
+          source={{ uri: 'https://via.placeholder.com/150' }}
+          style={styles.cardImage}
+          resizeMode="cover"
+        />
         <View style={styles.overlay}>
           <Text style={styles.cardTitle}>{item.name}</Text>
         </View>
@@ -49,7 +60,6 @@ const Explore: React.FC = () => {
     </TouchableOpacity>
   );
 
-  // Loading or error handling UI
   if (loading) {
     return (
       <ThemedView style={styles.container}>
@@ -69,18 +79,21 @@ const Explore: React.FC = () => {
   return (
     <ThemedView style={styles.container}>
       <View style={styles.headerContainer}>
-        <Image source={require('@/assets/images/brand-logo.png')} style={styles.logo} />
+        <Image
+          source={require('@/assets/images/brand-logo.png')}
+          style={styles.logo}
+        />
       </View>
 
       <Text style={styles.welcomeText}>Explore Categories</Text>
 
-      {/* FlatList to Render Categories */}
       <FlatList
         data={categories}
         renderItem={renderCategoryItem}
         keyExtractor={(item) => item.id.toString()}
         numColumns={2}
         contentContainerStyle={styles.categoryList}
+        showsVerticalScrollIndicator={false}
       />
     </ThemedView>
   );
@@ -89,13 +102,7 @@ const Explore: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9f9f9', // Light background color
-  },
-  welcomeText: {
-    fontSize: 20,
-    marginLeft: 10,
-    fontWeight: 'bold',
-    color: '#333',
+    backgroundColor: '#f9f9f9',
   },
   headerContainer: {
     flexDirection: 'row',
@@ -111,18 +118,28 @@ const styles = StyleSheet.create({
     height: 40,
     resizeMode: 'contain',
   },
+  welcomeText: {
+    fontSize: 18,
+    margin: 10,
+    fontWeight: '600',
+    color: '#333',
+  },
   categoryList: {
     paddingHorizontal: 10,
     paddingBottom: 10,
+    justifyContent: 'space-between',
   },
   card: {
     marginBottom: 15,
     marginHorizontal: 5,
     borderRadius: 12,
-    overflow: 'hidden', 
+    overflow: 'hidden',
+    backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 5,
+    flexBasis: '48%',
+    minWidth: 150,
   },
   cardContainer: {
     flex: 1,
@@ -131,7 +148,7 @@ const styles = StyleSheet.create({
   },
   cardImage: {
     width: '100%',
-    height: 200, // Ensure it looks good on different screen sizes
+    aspectRatio: 1, // maintains square image regardless of screen size
   },
   overlay: {
     position: 'absolute',
@@ -139,7 +156,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: 15,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Semi-transparent overlay for readability
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
   },
