@@ -1,90 +1,106 @@
-// screens/OrderListScreen.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   View, 
   Text, 
-  StyleSheet, 
   FlatList, 
+  TouchableOpacity, 
+  StyleSheet, 
   ActivityIndicator, 
-  RefreshControl, 
-  TouchableOpacity 
+  Image, 
+  ScrollView 
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation } from 'expo-router';
+import { Order, fetchOrders, fetchOrderById } from '@/app/services/orderService';
+import { getAuthToken } from '@/app/services/authService';
 import Toast from 'react-native-toast-message';
-import { fetchOrders, fetchOrderById, Order } from '@/app/services/orderService';
-import { getToken } from '@/app/utils/profileUtil';
+import { getProduct, Product } from '@/app/services/productService';
 
-const OrderListScreen: React.FC = () => {
+type OrderItemWithProduct = {
+  id: number;
+  product: Product;
+  quantity: number;
+  price: number;
+};
+
+type ExpandedOrderWithProducts = Order & {
+  orderItemsDetailed: OrderItemWithProduct[];
+};
+
+const statuses = ['All', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
+
+const OrderListScreen = () => {
+  const navigation = useNavigation();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [expandedOrder, setExpandedOrder] = useState<ExpandedOrderWithProducts | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  // expandedOrder holds the order details that are expanded inline
-  const [expandedOrder, setExpandedOrder] = useState<Order | null>(null);
   const [expanding, setExpanding] = useState<boolean>(false);
-  const router = useRouter();
-
-  // Load orders from the backend using the auth token
-  const loadOrders = useCallback(async () => {
-    try {
-      setLoading(true);
-      const token = await getToken();
-      if (!token) {
-        Toast.show({
-          type: 'error',
-          text1: 'Authentication Error',
-          text2: 'Missing token. Please log in.',
-        });
-        router.push('/authScreen');
-        return;
-      }
-      const fetchedOrders = await fetchOrders(token);
-      setOrders(fetchedOrders);
-      setError(null);
-    } catch (err) {
-      const message = (err as Error).message || 'Failed to fetch orders';
-      setError(message);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: message,
-      });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [router]);
+  const [selectedStatus, setSelectedStatus] = useState<string>('All');
 
   useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+    const loadOrders = async () => {
+      try {
+        const token = await getAuthToken();
+        if (!token) {
+          Toast.show({
+            type: 'error',
+            text1: 'Authentication Error',
+            text2: 'Missing token. Please log in.',
+          });
+          navigation.navigate('authScreen' as never);
+          return;
+        }
+        const fetchedOrders = await fetchOrders(token);
+        setOrders(fetchedOrders);
+      } catch (err) {
+        const message = (err as Error).message || 'Failed to load orders';
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: message,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const onRefresh = () => {
-    setRefreshing(true);
     loadOrders();
-  };
+  }, []);
 
-  // Toggle expansion of an order item. If already expanded, collapse it.
   const toggleExpandOrder = async (order: Order) => {
     if (expandedOrder && expandedOrder.id === order.id) {
       setExpandedOrder(null);
       return;
     }
+
     setExpanding(true);
     try {
-      const token = await getToken();
+      const token = await getAuthToken();
       if (!token) {
         Toast.show({
           type: 'error',
           text1: 'Authentication Error',
           text2: 'Missing token. Please log in.',
         });
-        router.push('/authScreen');
+        navigation.navigate('authScreen' as never);
         return;
       }
-      // Fetch full order details (including order items)
+
       const orderDetails = await fetchOrderById(token, order.id);
-      setExpandedOrder(orderDetails);
+      const orderItemsDetailed: OrderItemWithProduct[] = await Promise.all(
+        orderDetails.orderItems.map(async (item: any) => {
+          const product = await getProduct(item.productId.toString());
+          return {
+            id: item.id,
+            quantity: item.quantity,
+            price: item.price,
+            product,
+          };
+        })
+      );
+      setExpandedOrder({
+        ...orderDetails,
+        orderItemsDetailed,
+      } as ExpandedOrderWithProducts);
     } catch (err) {
       const message = (err as Error).message || 'Failed to fetch order details';
       Toast.show({
@@ -97,200 +113,229 @@ const OrderListScreen: React.FC = () => {
     }
   };
 
-  // Render a single order item in the FlatList
+  // Filtering logic: Make sure order.status matches one of the statuses exactly.
+  const filteredOrders = selectedStatus === 'All'
+    ? orders
+    : orders.filter(order => order.status === selectedStatus.toLocaleLowerCase());
+
   const renderOrderItem = ({ item }: { item: Order }) => {
     const isExpanded = expandedOrder?.id === item.id;
     return (
-      <View style={styles.orderCard}>
-        <TouchableOpacity onPress={() => toggleExpandOrder(item)}>
-          <View style={styles.orderHeader}>
-            <Text style={styles.orderId}>Order #{item.id}</Text>
-            <Text style={styles.orderStatus}>{item.status.toUpperCase()}</Text>
+      <TouchableOpacity style={styles.card} onPress={() => toggleExpandOrder(item)}>
+        <View style={styles.cardHeader}>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusText}>{item.status.toLocaleUpperCase()}</Text>
           </View>
-          <View style={styles.orderSubHeader}>
+        </View>
+
+        {isExpanded ? (
+          <>
+            {expandedOrder?.orderItemsDetailed?.map((orderItem) => (
+              <View key={orderItem.id} style={styles.productRow}>
+                <Image source={{ uri: orderItem.product.image }} style={styles.productImage} />
+                <View style={styles.productInfo}>
+                  <Text style={styles.productName}>{orderItem.product.name}</Text>
+                  <Text style={styles.productDetails}>
+                    ₱{orderItem.price.toFixed(2)} x {orderItem.quantity}
+                  </Text>
+                </View>
+              </View>
+            ))}
+            <TouchableOpacity onPress={() => toggleExpandOrder(item)}>
+              <Text style={styles.viewPrompt}>View Less ▲</Text>
+            </TouchableOpacity>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>
+                Total {expandedOrder?.orderItemsDetailed?.length ?? item.orderItems?.length ?? 0} items: ₱{item.total.toFixed(2)}
+              </Text>
+            </View>
+          </>
+        ) : (
+          <View style={styles.collapsedInfo}>
+            <Text style={styles.orderID}>Order ID: {item.id}</Text>
+            <Text style={styles.orderDate}>Date: {new Date(item.createdAt).toLocaleDateString()}</Text>
             <Text style={styles.orderTotal}>Total: ₱{item.total.toFixed(2)}</Text>
-            <Text style={styles.orderDate}>{new Date(item.createdAt).toLocaleDateString()}</Text>
-          </View>
-        </TouchableOpacity>
-        {isExpanded && (
-          <View style={styles.orderDetails}>
-            {expanding ? (
-              <ActivityIndicator size="small" color="#D6003A" />
-            ) : (
-              <>
-                <Text style={styles.detailLabel}>
-                  Total: <Text style={styles.detailText}>₱{expandedOrder?.total.toFixed(2)}</Text>
-                </Text>
-                <Text style={styles.detailLabel}>
-                  Status: <Text style={styles.detailText}>{expandedOrder?.status}</Text>
-                </Text>
-                <Text style={styles.detailLabel}>
-                  Placed: <Text style={styles.detailText}>{new Date(expandedOrder?.createdAt || '').toLocaleString()}</Text>
-                </Text>
-                {/* If more details (like order items) are needed, include them here */}
-              </>
-            )}
+            <Text style={styles.viewPrompt}>View More ▼</Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     );
   };
 
-  if (loading && !refreshing) {
+  if (loading) {
     return (
-      <View style={styles.centeredContainer}>
-        <ActivityIndicator size="large" color="#3498db" />
-        <Text style={styles.loadingText}>Loading orders...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centeredContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadOrders}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#000" />
       </View>
     );
   }
 
   return (
-    <View style={styles.screenContainer}>
-      {orders.length > 0 ? (
-        <FlatList
-          data={orders}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderOrderItem}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3498db']} />
-          }
-          contentContainerStyle={orders.length === 0 ? styles.centeredContainer : undefined}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No orders found. Start shopping now!</Text>
-              <TouchableOpacity onPress={() => router.push('/')}>
-                <Text style={styles.linkText}>Go back to shopping</Text>
-              </TouchableOpacity>
-            </View>
-          }
-        />
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No orders found. Start shopping now!</Text>
-          <TouchableOpacity onPress={() => router.push('/')}>
-            <Text style={styles.linkText}>Go back to shopping</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+    <View style={{ flex: 1 }}>
+      {/* Fixed-height Tab Navigation */}
+      <View style={styles.tabWrapper}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabContainer}>
+          {statuses.map((status) => (
+            <TouchableOpacity
+              key={status}
+              onPress={() => setSelectedStatus(status)}
+              style={[styles.tabButton, selectedStatus === status && styles.tabButtonActive]}
+            >
+              <Text style={[styles.tabButtonText, selectedStatus === status && styles.tabButtonTextActive]}>
+                {status}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      <FlatList
+        data={filteredOrders}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={renderOrderItem}
+        contentContainerStyle={styles.container}
+        ListFooterComponent={expanding ? <ActivityIndicator size="small" color="#888" /> : null}
+      />
     </View>
   );
 };
 
-export default OrderListScreen;
-
 const styles = StyleSheet.create({
-  screenContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 10,
+  container: {
+    padding: 16,
+    paddingBottom: 100,
   },
-  centeredContainer: {
-    flex: 1,
+  /* Tab Nav Wrapper to fix height */
+  tabWrapper: {
+    width: '100%',
+    height: 50,
+    backgroundColor: '#fff',
     justifyContent: 'center',
+  },
+  tabContainer: {
+    paddingHorizontal: 12,
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  orderCard: {
-    backgroundColor: '#f9f9f9',
-    borderRadius: 10,
-    padding: 15,
-    marginVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+  tabButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 18,
+    marginRight: 8,
   },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 5,
+  tabButtonActive: {
+    backgroundColor: '#d1005c',
   },
-  orderSubHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 5,
-  },
-  orderId: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  tabButtonText: {
+    fontSize: 14,
     color: '#333',
   },
-  orderStatus: {
+  tabButtonTextActive: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  // Card styling for orders
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  shopName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  statusBadge: {
+    backgroundColor: '#ffd6e7',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  statusText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#E91E63',
+    color: '#d1005c',
   },
-  orderTotal: {
-    fontSize: 16,
-    color: '#3498db',
+  // Expanded Product Row styling
+  productRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  productImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: '#eee',
+    marginRight: 12,
+  },
+  productInfo: {
+    flex: 1,
+  },
+  productName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#111',
+    marginBottom: 2,
+  },
+  productDetails: {
+    fontSize: 13,
+    color: '#666',
+  },
+  viewPrompt: {
+    fontSize: 13,
+    color: '#333',
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  summaryRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 10,
+    alignItems: 'flex-end',
+  },
+  summaryText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#000',
+  },
+  // Collapsed info styling (for when the order is not expanded)
+  collapsedInfo: {
+    marginTop: 8,
+  },
+  orderID: {
+    fontSize: 14,
+    color: '#444',
+    fontWeight: '500',
   },
   orderDate: {
-    fontSize: 14,
-    color: '#888',
-  },
-  orderDetails: {
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderColor: '#eee',
-    paddingTop: 10,
-  },
-  detailLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
     color: '#555',
+    marginTop: 2,
   },
-  detailText: {
-    fontWeight: 'normal',
-    color: '#333',
+  orderTotal: {
+    fontSize: 15,
+    color: '#000',
+    marginTop: 4,
+    fontWeight: '600',
   },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#333',
-  },
-  errorText: {
-    fontSize: 18,
-    color: 'red',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  retryButton: {
-    backgroundColor: '#3498db',
-    padding: 10,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  emptyContainer: {
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
-    textAlign: 'center',
-  },
-  linkText: {
-    fontSize: 16,
-    color: '#3498db',
-    textDecorationLine: 'underline',
   },
 });
+
+export default OrderListScreen;

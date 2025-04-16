@@ -1,5 +1,4 @@
 export interface Product {
-  image: string;
   id: string;
   name: string;
   rating: number;
@@ -7,18 +6,32 @@ export interface Product {
   price: number;
   stock: number;
   categoryId: string;
+  image: string;
+
+  images?: {
+    url: string;
+    altText?: string;
+    order: number;
+  }[];
 }
 
 const BASE_URL = "http://localhost:3000/api";
-const IMAGE_URL = "http://localhost:3000/api/image"; // Base URL for images
-const BYPASS_TUNNEL_HEADER = 'ngrok-skip-browser-warning';
-const HEADER_VALUE = 'your-custom-value'; // Set your custom value here
+// The uploads endpoint (assuming Express.static serves images from /uploads)
+const IMAGE_BASE_URL = "http://localhost:3000/uploads";
 
-// Helper function to update image URLs
+const BYPASS_TUNNEL_HEADER = "ngrok-skip-browser-warning";
+const HEADER_VALUE = "your-custom-value"; // Set your custom header value here
+
+// Helper function: Ensures a valid image URL string is assigned to product.image.
 function updateProductImage(product: Product): Product {
-  return { 
-    ...product, 
-    image: `${IMAGE_URL}/${product.image || 'placeholder.png'}`
+  const imageUrl =
+    product.images && product.images.length > 0
+      ? `${product.images.sort((a, b) => a.order - b.order)[0].url}`
+      : `${IMAGE_BASE_URL}/placeholder.png`;
+
+  return {
+    ...product,
+    image: imageUrl,
   };
 }
 
@@ -27,12 +40,12 @@ export async function getProducts(): Promise<Product[]> {
   try {
     const response = await fetch(`${BASE_URL}/products`, {
       headers: {
-        'grok-skip-browser-warning': HEADER_VALUE,
+        [BYPASS_TUNNEL_HEADER]: HEADER_VALUE,
       },
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch products');
+      throw new Error("Failed to fetch products");
     }
 
     const products: Product[] = await response.json();
@@ -49,16 +62,16 @@ export async function getProduct(id: string): Promise<Product> {
   try {
     const response = await fetch(`${BASE_URL}/products/${id}`, {
       headers: {
-        'bypass-tunnel-reminder': HEADER_VALUE,
+        [BYPASS_TUNNEL_HEADER]: HEADER_VALUE,
       },
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch product');
+      throw new Error("Failed to fetch product");
     }
 
     const product: Product = await response.json();
-    console.log(product);
+    // console.log(product);
     return updateProductImage(product);
   } catch (error) {
     console.error("Error fetching product:", error);
@@ -66,14 +79,15 @@ export async function getProduct(id: string): Promise<Product> {
   }
 }
 
+// Get product stock
 export async function getProductStock(id: string): Promise<number> {
   try {
     const res = await fetch(`${BASE_URL}/products/stock/${id}`);
-    if (!res.ok) throw new Error('Failed to fetch stock');
+    if (!res.ok) throw new Error("Failed to fetch stock");
     const { stock } = await res.json();
     return stock;
   } catch (err) {
-    console.error('Error fetching product stock:', err);
+    console.error("Error fetching product stock:", err);
     return 1;
   }
 }
@@ -81,34 +95,40 @@ export async function getProductStock(id: string): Promise<number> {
 // Get products by category
 export async function getProductsByCategory(id: string): Promise<Product[]> {
   try {
-    const response = await fetch(`${BASE_URL}/products/category/${id}`);
+    const response = await fetch(`${BASE_URL}/products/category/${id}`, {
+      headers: {
+        [BYPASS_TUNNEL_HEADER]: HEADER_VALUE,
+      },
+    });
     
     if (!response.ok) {
-      throw new Error('Failed to fetch products');
+      throw new Error("Failed to fetch products");
     }
 
     const products: Product[] = await response.json();
     return products.map(updateProductImage);
   } catch (error) {
-    console.error("Error fetching products:", error);
+    console.error("Error fetching products by category:", error);
     throw error;
   }
 }
 
 // Create a new product
-export async function createProduct(newProduct: Omit<Product, 'id'>): Promise<Product> {
+export async function createProduct(
+  newProduct: Omit<Product, "id" | "image" | "images">
+): Promise<Product> {
   try {
     const response = await fetch(`${BASE_URL}/products`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'bypass-tunnel-reminder': HEADER_VALUE,
+        "Content-Type": "application/json",
+        [BYPASS_TUNNEL_HEADER]: HEADER_VALUE,
       },
       body: JSON.stringify(newProduct),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to create product');
+      throw new Error("Failed to create product");
     }
 
     const product: Product = await response.json();
@@ -120,19 +140,22 @@ export async function createProduct(newProduct: Omit<Product, 'id'>): Promise<Pr
 }
 
 // Update an existing product
-export async function updateProduct(id: string, updatedProduct: Omit<Product, 'id'>): Promise<Product> {
+export async function updateProduct(
+  id: string,
+  updatedProduct: Omit<Product, "id" | "image" | "images">
+): Promise<Product> {
   try {
     const response = await fetch(`${BASE_URL}/products/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       headers: {
-        'Content-Type': 'application/json',
-        'bypass-tunnel-reminder': HEADER_VALUE,
+        "Content-Type": "application/json",
+        [BYPASS_TUNNEL_HEADER]: HEADER_VALUE,
       },
       body: JSON.stringify(updatedProduct),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to update product');
+      throw new Error("Failed to update product");
     }
 
     const product: Product = await response.json();
@@ -147,17 +170,17 @@ export async function updateProduct(id: string, updatedProduct: Omit<Product, 'i
 export async function deleteProduct(id: string): Promise<void> {
   try {
     const response = await fetch(`${BASE_URL}/products/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: {
-        'bypass-tunnel-reminder': HEADER_VALUE,
+        [BYPASS_TUNNEL_HEADER]: HEADER_VALUE,
       },
     });
 
     if (!response.ok) {
-      throw new Error('Failed to delete product');
+      throw new Error("Failed to delete product");
     }
 
-    console.log('Product deleted successfully');
+    console.log("Product deleted successfully");
   } catch (error) {
     console.error("Error deleting product:", error);
     throw error;

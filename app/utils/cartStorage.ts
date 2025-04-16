@@ -127,13 +127,7 @@ export const checkoutCartLocal = async (): Promise<boolean> => {
       console.error("Cart is empty, cannot checkout locally.");
       return false; // Return false if cart is empty
     }
-
-    // // Perform any necessary local actions for checkout
-    // // Example: Clear the cart from AsyncStorage after checkout
-    // await clearCartLocal();
-
-    // Optionally, you can save the checkout data to your database or API at this point
-
+    
     console.log("Local checkout successful, cart cleared.");
     return true; // Return true if checkout was successful
   } catch (error) {

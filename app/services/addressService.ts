@@ -1,6 +1,6 @@
 import { getUserInfoField } from "../utils/profileUtil";
 
-const API_BASE_URL = "http://localhost:3000/api/addresses";
+const API_BASE_URL = "http://localhost:3000/api/address";
 
 class AddressService {
   // Create a new address
@@ -10,7 +10,7 @@ class AddressService {
     state: string;
     zip: string;
     country: string;
-    status: "active";
+    status: "PRIMARY";
     primary?: boolean;
   }) {
     try {
@@ -98,6 +98,8 @@ class AddressService {
       throw error;
     }
   }
+
+  
 
   async updateAddress(
     id: number,

@@ -6,7 +6,6 @@ import {
   Text,
   Image,
   TouchableOpacity,
-  Button,
   Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -18,6 +17,28 @@ import SkeletonLoader from '@/components/SkeletonLoader';
 import LoginRequiredModal from '@/components/LogInRequiredModal';
 
 const screenWidth = Dimensions.get('window').width;
+
+interface ImageItem {
+  url: string;
+  altText?: string;
+  order: number;
+}
+
+// A simple inline carousel for images using FlatList
+const ImageCarousel: React.FC<{ images: ImageItem[]; style?: any }> = ({ images, style }) => {
+  return (
+    <FlatList
+      data={images.sort((a, b) => a.order - b.order)}
+      horizontal
+      pagingEnabled
+      showsHorizontalScrollIndicator={false}
+      keyExtractor={(item, index) => `${item.order}-${index}`}
+      renderItem={({ item }) => (
+        <Image source={{ uri: item.url }} style={[styles.productImage, style]} />
+      )}
+    />
+  );
+};
 
 const ProductsScreen: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -49,18 +70,18 @@ const ProductsScreen: React.FC = () => {
 
   const handleAddToCart = async (product: Product) => {
     const quantityToAdd = product.stock > 0 ? 1 : 0;
-  
+
     if (quantityToAdd > 0) {
       const newCartItem: CartItem = {
         id: parseInt(product.id),
         name: product.name,
         price: product.price,
-        image: product.image, // Assuming product.image is your field
+        image: product.image,
         quantity: quantityToAdd,
       };
-  
+
       const success = await addToCartLocal(newCartItem, () => setShowLoginModal(true));
-  
+
       if (success) {
         fetchCartItems();
         Toast.show({
@@ -86,19 +107,18 @@ const ProductsScreen: React.FC = () => {
       });
     }
   };
-  
+
   useEffect(() => {
     fetchProducts();
     fetchCartItems();
   }, []);
-  
+
   // Filter products based on the out-of-stock toggle
   const availableProducts = showOutOfStock
     ? products
-    : products.filter(product => product.stock > 0);
-  
+    : products.filter((product) => product.stock > 0);
+
   // When the search query is non-empty, filter products by name or description.
-  // When empty, show all available products.
   const filteredProducts = searchQuery.trim()
     ? availableProducts.filter(
         (p) =>
@@ -106,54 +126,48 @@ const ProductsScreen: React.FC = () => {
           p.description.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : availableProducts;
-  
-  // If a search query is present, compute recommended products from the filtered products.
-  // For example, we choose the top 4 products by rating.
+
+  // Recommended products, for example, the top 4 by rating
   const recommendedProducts = searchQuery.trim()
     ? [...filteredProducts]
         .sort((a, b) => (b.rating || 0) - (a.rating || 0))
         .slice(0, 4)
     : [];
-  
-  const renderItem = ({ item }: { item: Product }) => {
-    const isOutOfStock = item.stock === 0;
-  
-    return (
-      <TouchableOpacity
-        style={[
-          styles.productCard,
-          isOutOfStock && styles.outOfStockCard,
-        ]}
-        onPress={() => router.push(`/product/${item.id}`)}
-        disabled={isOutOfStock}
-      >
-        <Image source={{ uri: item.image }} style={styles.productImage} />
-        <Text style={styles.productName}>{item.name}</Text>
-        <Text style={styles.productPrice}>{`₱${item.price}`}</Text>
-        <Text style={styles.productDescription}>{item.description}</Text>
-  
-        {isOutOfStock ? (
-          <Text style={styles.outOfStockLabel}>Out of Stock</Text>
-        ) : (
-          <></>
-        )}
-      </TouchableOpacity>
-    );
-  };
-  
-  // Render recommended products horizontally (only if there's a search query and recommendations exist)
+
+    const renderItem = ({ item }: { item: Product }) => {
+      const isOutOfStock = item.stock === 0;
+    
+      return (
+        <TouchableOpacity
+          style={[styles.productCard, isOutOfStock && styles.outOfStockCard]}
+          onPress={() => router.push(`/product/${item.id}`)}
+          disabled={isOutOfStock}
+        >
+          <Image source={{ uri: item.image }} style={styles.productImage} />
+          <Text style={styles.productName}>{item.name}</Text>
+          <Text style={styles.productPrice}>{`₱${item.price}`}</Text>
+          <Text style={styles.productRating}>⭐ {item.rating?.toFixed(1) || 'N/A'}</Text>
+          {isOutOfStock && <Text style={styles.outOfStockLabel}>Out of Stock</Text>}
+        </TouchableOpacity>
+      );
+    };
+    
   const renderRecommendedItem = ({ item }: { item: Product }) => {
     return (
       <TouchableOpacity
         style={styles.recommendationCard}
         onPress={() => router.push(`/product/${item.id}`)}
       >
-        <Image source={{ uri: item.image }} style={styles.recommendationImage} />
+        {item.images && item.images.length > 1 ? (
+          <ImageCarousel images={item.images} style={styles.recommendationImage} />
+        ) : (
+          <Image source={{ uri: item.image }} style={styles.recommendationImage} />
+        )}
         <Text style={styles.recommendationName}>{item.name}</Text>
       </TouchableOpacity>
     );
   };
-  
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -166,7 +180,7 @@ const ProductsScreen: React.FC = () => {
       </View>
     );
   }
-  
+
   if (error) {
     return (
       <View style={styles.container}>
@@ -175,20 +189,20 @@ const ProductsScreen: React.FC = () => {
       </View>
     );
   }
-  
+
   return (
     <View style={styles.container}>
       <Header onSearch={(query) => setSearchQuery(query)} />
       <View style={styles.toggleContainer}>
-  <TouchableOpacity
-    style={styles.toggleButton}
-    onPress={() => setShowOutOfStock(prev => !prev)}
-  >
-    <Text style={styles.toggleText}>
-      {showOutOfStock ? 'Hide' : 'Show'} Out of Stock Products
-    </Text>
-  </TouchableOpacity>
-</View>
+        <TouchableOpacity
+          style={styles.toggleButton}
+          onPress={() => setShowOutOfStock(prev => !prev)}
+        >
+          <Text style={styles.toggleText}>
+            {showOutOfStock ? 'Hide' : 'Show'} Out of Stock Products
+          </Text>
+        </TouchableOpacity>
+      </View>
       {searchQuery.trim() !== '' && recommendedProducts.length > 0 && (
         <View style={styles.recommendationContainer}>
           <Text style={styles.recommendationTitle}>Recommended Products</Text>
@@ -201,7 +215,6 @@ const ProductsScreen: React.FC = () => {
           />
         </View>
       )}
-  
       <FlatList
         key={`products-2-${showOutOfStock}`} // ensures re-render when toggle changes
         data={filteredProducts}
@@ -215,7 +228,7 @@ const ProductsScreen: React.FC = () => {
     </View>
   );
 };
-  
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   columnWrapperStyle: {
@@ -232,6 +245,7 @@ const styles = StyleSheet.create({
   productImage: {
     width: '100%',
     height: 150,
+    resizeMode:"contain",
     borderRadius: 8,
   },
   productName: {
@@ -241,7 +255,8 @@ const styles = StyleSheet.create({
   },
   productPrice: {
     color: 'red',
-    fontSize: 14,
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   productDescription: {
     fontSize: 12,
@@ -299,7 +314,12 @@ const styles = StyleSheet.create({
     marginTop: 5,
     textAlign: 'center',
   },
+  productRating: {
+    fontSize: 14,
+    color: '#555',
+    marginTop: 2,
+  },
   
 });
-  
+
 export default ProductsScreen;
