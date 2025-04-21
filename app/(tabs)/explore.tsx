@@ -1,45 +1,58 @@
-import React, { useEffect, useState } from 'react';
+// src/app/screens/Explore.tsx
+
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   StyleSheet,
   View,
   FlatList,
   TouchableOpacity,
-  Image,
   Text,
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ThemedView } from '@/components/ThemedView';
-import { Category, categoryService } from '../services/categoryService';
+import { Category, categoryService } from '@/services/categoryService';
+
+const PRIMARY_RED = '#DD2222';
+const WHITE = '#FFFFFF';
+const LIGHT_GRAY = '#F5F5F5';
 
 const Explore: React.FC = () => {
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
+
   const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // fetch categories once
   useEffect(() => {
-    const fetchCategories = async () => {
+    (async () => {
       setLoading(true);
       setError(null);
       try {
         const data = await categoryService.getCategories();
         setCategories(data);
-      } catch (err) {
-        setError('Failed to load categories');
+      } catch {
+        setError('Failed to load categories.');
       } finally {
         setLoading(false);
       }
-    };
-
-    fetchCategories();
+    })();
   }, []);
 
-  const renderCategoryItem = ({ item }: { item: Category }) => (
+  // card width (two per row with spacing)
+  const cardWidth = useMemo(() => screenWidth * 0.44, [screenWidth]);
+
+  const renderCategoryItem = ({
+    item,
+  }: {
+    item: Category;
+  }) => (
     <TouchableOpacity
-      style={[styles.card, { width: screenWidth * 0.44 }]}
+      style={[styles.card, { width: cardWidth }]}
+      activeOpacity={0.8}
       onPress={() =>
         router.push({
           pathname: '/category/[id]',
@@ -47,23 +60,14 @@ const Explore: React.FC = () => {
         })
       }
     >
-      <View style={styles.cardContainer}>
-        <Image
-          source={{ uri: 'https://via.placeholder.com/150' }}
-          style={styles.cardImage}
-          resizeMode="cover"
-        />
-        <View style={styles.overlay}>
-          <Text style={styles.cardTitle}>{item.name}</Text>
-        </View>
-      </View>
+      <Text style={styles.cardTitle}>{item.name}</Text>
     </TouchableOpacity>
   );
 
   if (loading) {
     return (
       <ThemedView style={styles.container}>
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size="large" color={PRIMARY_RED} />
       </ThemedView>
     );
   }
@@ -71,28 +75,26 @@ const Explore: React.FC = () => {
   if (error) {
     return (
       <ThemedView style={styles.container}>
-        <Text>{error}</Text>
+        <Text style={styles.errorText}>{error}</Text>
       </ThemedView>
     );
   }
 
   return (
     <ThemedView style={styles.container}>
+      {/* Header */}
       <View style={styles.headerContainer}>
-        <Image
-          source={require('@/assets/images/brand-logo.png')}
-          style={styles.logo}
-        />
+        <Text style={styles.headerTitle}>Explore Categories</Text>
       </View>
 
-      <Text style={styles.welcomeText}>Explore Categories</Text>
-
+      {/* Category Grid */}
       <FlatList
         data={categories}
         renderItem={renderCategoryItem}
         keyExtractor={(item) => item.id.toString()}
         numColumns={2}
-        contentContainerStyle={styles.categoryList}
+        contentContainerStyle={styles.listContent}
+        columnWrapperStyle={styles.row}
         showsVerticalScrollIndicator={false}
       />
     </ThemedView>
@@ -102,68 +104,51 @@ const Explore: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: LIGHT_GRAY,
   },
   headerContainer: {
-    flexDirection: 'row',
+    paddingVertical: 20,
+    backgroundColor: PRIMARY_RED,
     alignItems: 'center',
+  },
+  headerTitle: {
+    color: WHITE,
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  listContent: {
+    padding: 10,
+  },
+  row: {
     justifyContent: 'space-between',
-    paddingHorizontal: 10,
-    paddingTop: 20,
-    paddingVertical: 10,
-    backgroundColor: '#ff0000',
-  },
-  logo: {
-    width: 40,
-    height: 40,
-    resizeMode: 'contain',
-  },
-  welcomeText: {
-    fontSize: 18,
-    margin: 10,
-    fontWeight: '600',
-    color: '#333',
-  },
-  categoryList: {
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-    justifyContent: 'space-between',
+    marginBottom: 15,
   },
   card: {
-    marginBottom: 15,
-    marginHorizontal: 5,
+    height: 120,
+    backgroundColor: WHITE,
     borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-    shadowColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: PRIMARY_RED,
+    elevation: 2, // Android shadow
+    shadowColor: '#000', // iOS shadow
     shadowOpacity: 0.1,
-    shadowRadius: 5,
-    flexBasis: '48%',
-    minWidth: 150,
-  },
-  cardContainer: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  cardImage: {
-    width: '100%',
-    aspectRatio: 1, // maintains square image regardless of screen size
-  },
-  overlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 15,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
   cardTitle: {
-    color: '#fff',
+    color: PRIMARY_RED,
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingHorizontal: 8,
+  },
+  errorText: {
+    color: PRIMARY_RED,
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 20,
   },
 });
 

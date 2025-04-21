@@ -9,11 +9,11 @@ import {
   Image, 
   ScrollView 
 } from 'react-native';
-import { useNavigation } from 'expo-router';
-import { Order, fetchOrders, fetchOrderById } from '@/app/services/orderService';
-import { getAuthToken } from '@/app/services/authService';
+import { useNavigation, useRouter } from 'expo-router';
+import { Order, fetchOrders, fetchOrderById } from '@/services/orderService';
+import { getAuthToken } from '@/services/authService';
 import Toast from 'react-native-toast-message';
-import { getProduct, Product } from '@/app/services/productService';
+import { getProduct, Product } from '@/services/productService';
 
 type OrderItemWithProduct = {
   id: number;
@@ -29,7 +29,7 @@ type ExpandedOrderWithProducts = Order & {
 const statuses = ['All', 'Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
 
 const OrderListScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [expandedOrder, setExpandedOrder] = useState<ExpandedOrderWithProducts | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -46,7 +46,7 @@ const OrderListScreen = () => {
             text1: 'Authentication Error',
             text2: 'Missing token. Please log in.',
           });
-          navigation.navigate('authScreen' as never);
+          navigation.replace('/authScreen');
           return;
         }
         const fetchedOrders = await fetchOrders(token);

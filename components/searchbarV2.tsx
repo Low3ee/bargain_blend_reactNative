@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/store'; // Adjust the import to your path
 import { setCartItems } from '@/store/cartSlice'; // Import the action to update cart items
-import { getCartItems } from '@/app/utils/cartStorage'; 
+import { getCartItems } from '@/utils/cartStorage'; 
 
 interface Props {
   onSearch: (query: string) => void;

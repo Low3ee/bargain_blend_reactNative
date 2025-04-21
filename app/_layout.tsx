@@ -42,7 +42,7 @@ export default function RootLayout() {
   if (!isReady) {
     return (
       <View style={styles.loadingContainer}>
-        <Image source={require('..//assets/images/splash-icon.jpg')} style={styles.splashImage} />
+        <Image source={require('..//assets/images/splash-icon.png')} style={styles.splashImage} />
         <ActivityIndicator size="large" color="#E91E63" />
       </View>
     );

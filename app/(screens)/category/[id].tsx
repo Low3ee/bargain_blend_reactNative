@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, FlatList, Text, Image, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { getProductsByCategory, Product } from '@/app/services/productService';
+import { getProductsByCategory, Product } from '@/services/productService';
 import Header from '@/components/Header';
 import SkeletonLoader from '@/components/SkeletonLoader';
 

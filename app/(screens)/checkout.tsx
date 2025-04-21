@@ -20,23 +20,28 @@ import {
   calculateTotalAmountLocal,
   clearCartLocal,
   CartItem,
-} from '@/app/utils/cartStorage';
-import { createOrder } from '@/app/services/orderService';
+} from '@/utils/cartStorage';
+import { createOrder } from '@/services/orderService';
 import AddressModal, { Address } from '@/components/AddressModal';
-import { getToken, getUserInfoField } from '@/app/utils/profileUtil';
-import AddressService from '@/app/services/addressService';
+import { getToken, getUserInfoField } from '@/utils/profileUtil';
+import AddressService from '@/services/addressService';
 
 const { width } = Dimensions.get('window');
 
 const CheckoutPage: React.FC = () => {
-  // Change paymentMethod default to number (1 for COD)
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [totalAmount, setTotalAmount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<number>(1);
+
+  // Selected shipping address
   const [selectedAddress, setSelectedAddress] = useState<Address['raw'] | null>(null);
+
   const [modalVisible, setModalVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
+
   const [loading, setLoading] = useState(false);
+  // Loading state specifically for fetching the primary address
+  const [addressLoading, setAddressLoading] = useState(false);
 
   useEffect(() => {
     loadCartData();
@@ -50,17 +55,26 @@ const CheckoutPage: React.FC = () => {
   };
 
   const loadPrimaryAddress = async () => {
+    setAddressLoading(true);
     try {
       const userId = await getUserInfoField('id');
-      if (userId) {
-        const addresses = await AddressService.getAddressesByUserId(Number(userId));
-        const primary = addresses.find((a: Address) => a.raw.primary);
-        if (primary) {
-          setSelectedAddress(primary.raw);
-        }
+      if (!userId) {
+        setSelectedAddress(null);
+        return;
       }
-    } catch (error) {
-      console.error('Error loading primary address', error);
+      const all = await AddressService.getAddressesByUserId(Number(userId));
+      if (!all || all.length === 0) {
+        setSelectedAddress(null);
+        return;
+      }
+      const rawPrimary =
+        all.find((a : any) => a.primary === true || a.status === 'PRIMARY') || all[0];
+      setSelectedAddress(rawPrimary);
+    } catch (err) {
+      console.error('Error loading primary address', err);
+      setSelectedAddress(null);
+    } finally {
+      setAddressLoading(false);
     }
   };
 
@@ -81,7 +95,11 @@ const CheckoutPage: React.FC = () => {
 
   const handleCheckout = async () => {
     if (cartItems.length === 0) {
-      return showToast('info', 'Empty Cart', 'Please add items to your cart before checking out.');
+      return showToast(
+        'info',
+        'Empty Cart',
+        'Please add items to your cart before checking out.'
+      );
     }
     if (!selectedAddress) {
       return showToast('info', 'Missing Address', 'Please select a shipping address.');
@@ -91,18 +109,28 @@ const CheckoutPage: React.FC = () => {
     try {
       const userId = await getUserInfoField('id');
       const token = await getToken();
-
       if (!userId || !token) {
-        return showToast('error', 'Authentication Error', 'Please log in again to complete your order.');
+        return showToast(
+          'error',
+          'Authentication Error',
+          'Please log in again to complete your order.'
+        );
       }
 
-      const orderItems = cartItems.map(item => ({
+      const orderItems = cartItems.map((item) => ({
         productId: item.id,
         quantity: item.quantity,
         price: item.price,
       }));
 
-      await createOrder(token, userId, totalAmount, paymentMethod, selectedAddress.id, orderItems);
+      await createOrder(
+        token,
+        userId,
+        totalAmount,
+        paymentMethod,
+        selectedAddress.id,
+        orderItems
+      );
 
       await clearCartLocal();
       await loadCartData();
@@ -111,11 +139,11 @@ const CheckoutPage: React.FC = () => {
       router.push('/');
     } catch (error: any) {
       console.error('Checkout error:', error);
-      const errorMessage =
+      const msg =
         typeof error === 'string'
           ? error
-          : error?.response?.data?.message || error?.message || 'Something went wrong. Please try again.';
-      showToast('error', 'Checkout Failed', errorMessage);
+          : error?.response?.data?.message || error?.message || 'Something went wrong.';
+      showToast('error', 'Checkout Failed', msg);
     } finally {
       setLoading(false);
       setConfirmVisible(false);
@@ -129,14 +157,22 @@ const CheckoutPage: React.FC = () => {
 
         <View style={styles.section}>
           <Text style={styles.label}>Shipping Address</Text>
-          {selectedAddress ? (
+
+          {addressLoading ? (
+            <ActivityIndicator size="small" color="#D6003A" style={{ marginVertical: 8 }} />
+          ) : selectedAddress ? (
             <Text style={styles.addressText}>
               {`${selectedAddress.street}, ${selectedAddress.city}, ${selectedAddress.state}, ${selectedAddress.zip}, ${selectedAddress.country}`}
             </Text>
           ) : (
             <Text style={styles.addressPlaceholder}>No address selected</Text>
           )}
-          <TouchableOpacity style={styles.button} onPress={() => setModalVisible(true)}>
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => setModalVisible(true)}
+            disabled={addressLoading}
+          >
             <Text style={styles.buttonText}>
               {selectedAddress ? 'Change Address' : 'Select Address'}
             </Text>
@@ -147,7 +183,9 @@ const CheckoutPage: React.FC = () => {
           data={cartItems}
           keyExtractor={(item) => item.id.toString()}
           style={styles.cartList}
-          ListEmptyComponent={<Text style={styles.emptyText}>Your cart is empty.</Text>}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>Your cart is empty.</Text>
+          }
           renderItem={({ item }) => (
             <View style={styles.cartItem}>
               <Text style={styles.cartItemText}>{item.name}</Text>
@@ -168,12 +206,14 @@ const CheckoutPage: React.FC = () => {
             style={styles.select}
           >
             <option value={1}>Cash on Delivery</option>
-            <option value={2} disabled>Gcash (Coming Soon)</option>
+            <option value={2} disabled>
+              Gcash (Coming Soon)
+            </option>
             <option value={3}>PayPal</option>
           </select>
         ) : (
           <RNPickerSelect
-            onValueChange={(value) => setPaymentMethod(value)}
+            onValueChange={(v) => setPaymentMethod(v)}
             items={[
               { label: 'Cash on Delivery', value: 1 },
               { label: 'Gcash (Coming Soon)', value: 2 },
@@ -188,9 +228,10 @@ const CheckoutPage: React.FC = () => {
         )}
       </ScrollView>
 
-      {/* Checkout Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerTotal}>Order Amount: ₱{totalAmount.toFixed(2)}</Text>
+        <Text style={styles.footerTotal}>
+          Order Amount: ₱{totalAmount.toFixed(2)}
+        </Text>
         <TouchableOpacity
           style={[
             styles.button,
@@ -207,14 +248,15 @@ const CheckoutPage: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Address Modal */}
       <AddressModal
         modalVisible={modalVisible}
         setModalVisible={setModalVisible}
-        onSelectAddress={(addr) => setSelectedAddress(addr)}
+        onSelectAddress={(addr) => {
+          setSelectedAddress(addr);
+          setModalVisible(false);
+        }}
       />
 
-      {/* Confirmation Modal */}
       <ConfirmModal
         visible={confirmVisible}
         onCancel={() => setConfirmVisible(false)}
@@ -243,10 +285,16 @@ const ConfirmModal = ({
           Are you sure you want to place this order?
         </Text>
         <View style={styles.modalButtons}>
-          <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#ccc' }]} onPress={onCancel}>
+          <TouchableOpacity
+            style={[styles.modalButton, { backgroundColor: '#ccc' }]}
+            onPress={onCancel}
+          >
             <Text style={{ color: '#333' }}>Cancel</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#D6003A' }]} onPress={onConfirm}>
+          <TouchableOpacity
+            style={[styles.modalButton, { backgroundColor: '#D6003A' }]}
+            onPress={onConfirm}
+          >
             <Text style={{ color: '#fff' }}>Confirm</Text>
           </TouchableOpacity>
         </View>
@@ -282,7 +330,12 @@ const styles = StyleSheet.create({
   },
   cartItemText: { fontSize: 16 },
   emptyText: { textAlign: 'center', fontSize: 16, marginVertical: 20 },
-  totalText: { fontSize: 20, fontWeight: 'bold', textAlign: 'right', marginVertical: 10 },
+  totalText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'right',
+    marginVertical: 10,
+  },
   select: {
     fontSize: 16,
     paddingVertical: 10,
@@ -319,9 +372,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
-  modalMessage: { fontSize: 16, textAlign: 'center', marginBottom: 20 },
-  modalButtons: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
-  modalButton: { flex: 1, paddingVertical: 12, marginHorizontal: 5, borderRadius: 8, alignItems: 'center' },
+  modalMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    marginHorizontal: 5,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
 });
 
 export default CheckoutPage;

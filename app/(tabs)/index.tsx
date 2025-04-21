@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
-import { getProducts, Product } from '@/app/services/productService';
-import { addToCartLocal, getCartItems, CartItem } from '@/app/utils/cartStorage';
+import { getProducts, Product } from '@/services/productService';
+import { addToCartLocal, getCartItems, CartItem } from '@/utils/cartStorage';
 import Header from '@/components/Header';
 import SkeletonLoader from '@/components/SkeletonLoader';
 import LoginRequiredModal from '@/components/LogInRequiredModal';
@@ -68,57 +68,15 @@ const ProductsScreen: React.FC = () => {
     setCartItems(savedCartItems);
   };
 
-  const handleAddToCart = async (product: Product) => {
-    const quantityToAdd = product.stock > 0 ? 1 : 0;
-
-    if (quantityToAdd > 0) {
-      const newCartItem: CartItem = {
-        id: parseInt(product.id),
-        name: product.name,
-        price: product.price,
-        image: product.image,
-        quantity: quantityToAdd,
-      };
-
-      const success = await addToCartLocal(newCartItem, () => setShowLoginModal(true));
-
-      if (success) {
-        fetchCartItems();
-        Toast.show({
-          type: 'success',
-          text1: 'Added to Cart',
-          text2: `${product.name} has been added.`,
-          position: 'bottom',
-        });
-      } else {
-        Toast.show({
-          type: 'error',
-          text1: 'Add to Cart Failed',
-          text2: 'Unable to add product to cart.',
-          position: 'bottom',
-        });
-      }
-    } else {
-      Toast.show({
-        type: 'error',
-        text1: 'Out of Stock',
-        text2: 'This product is out of stock.',
-        position: 'bottom',
-      });
-    }
-  };
-
   useEffect(() => {
     fetchProducts();
     fetchCartItems();
   }, []);
 
-  // Filter products based on the out-of-stock toggle
   const availableProducts = showOutOfStock
     ? products
     : products.filter((product) => product.stock > 0);
 
-  // When the search query is non-empty, filter products by name or description.
   const filteredProducts = searchQuery.trim()
     ? availableProducts.filter(
         (p) =>
@@ -127,7 +85,6 @@ const ProductsScreen: React.FC = () => {
       )
     : availableProducts;
 
-  // Recommended products, for example, the top 4 by rating
   const recommendedProducts = searchQuery.trim()
     ? [...filteredProducts]
         .sort((a, b) => (b.rating || 0) - (a.rating || 0))
@@ -216,7 +173,7 @@ const ProductsScreen: React.FC = () => {
         </View>
       )}
       <FlatList
-        key={`products-2-${showOutOfStock}`} // ensures re-render when toggle changes
+        key={`products-2-${showOutOfStock}`}
         data={filteredProducts}
         renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}

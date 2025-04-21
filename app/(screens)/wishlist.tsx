@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { getWishlist, removeFromFavorite } from '@/app/services/wishlistService';
+import { getWishlist, removeFromFavorite } from '@/services/wishlistService';
 import Toast from 'react-native-toast-message';
 
 const WishlistScreen: React.FC = () => {

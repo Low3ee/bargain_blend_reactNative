@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, Image, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { registerUser, loginUser } from '@/app/services/authService';
+import { registerUser, loginUser } from '@/services/authService';
 import Toast from 'react-native-toast-message';
 
 const AuthScreen = () => {
@@ -24,9 +24,10 @@ const AuthScreen = () => {
         setIsSignUp(true);
     };
 
-    // Handle Sign Up or Sign In
+
     const handlePress = async () => {
         setLoading(true);
+
 
         // Check if all required fields are filled
         if (!email || !password || (isSignUp && (!fname || !lname || !username))) {
@@ -41,7 +42,6 @@ const AuthScreen = () => {
 
         try {
             if (isSignUp) {
-                // Call API to register the user
                 const response = await registerUser(email, password, fname, lname, username );
                 if (response.success && response.token) {
                     await AsyncStorage.setItem('auth_token', response.token);
@@ -51,7 +51,7 @@ const AuthScreen = () => {
                         text1: 'Success',
                         text2: 'Registration successful. Logging you in...',
                     });
-                    router.push('/'); // Navigate to the index screen after successful signup
+                    router.push('/');
                 } else {
                     Toast.show({
                         type: 'error',
@@ -91,6 +91,12 @@ const AuthScreen = () => {
         }
     };
 
+    const navigation = useNavigation();
+    useEffect(() => {
+        navigation.setOptions({
+            title: 'Authentication',
+        });
+    }, [navigation]);
     useEffect(() => {
         const checkLoggedIn = async () => {
             let token: string | null = null;

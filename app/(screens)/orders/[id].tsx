@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
-import { fetchOrderById, Order } from "../../services/orderService";
+import { fetchOrderById, Order } from "../../../services/orderService";
 import { Ionicons } from "@expo/vector-icons";
 import { TouchableOpacity } from "react-native-gesture-handler";
-import { getAuthToken } from "@/app/services/authService"; // Assuming you store token via context or asyncStorage
+import { getAuthToken } from "@/services/authService"; // Assuming you store token via context or asyncStorage
 
 const OrderDetailsScreen = () => {
   const route = useRoute<any>();
@@ -12,11 +12,13 @@ const OrderDetailsScreen = () => {
   const { id } = route.params;
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
-  const token = getAuthToken();
-
   useEffect(() => {
     const loadOrder = async () => {
       try {
+        const token = await getAuthToken();
+        if (!token) {
+          throw new Error("Authentication token is missing.");
+        }
         const data = await fetchOrderById(token, id);
         setOrder(data);
       } catch (error) {

@@ -12,19 +12,21 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
-import AddressService from '@/app/services/addressService';
+import AddressService from '@/services/addressService';
 import {
   FIXED_COUNTRY,
   PHILIPPINE_CITIES,
   PHILIPPINE_PROVINCES,
   formatAddress,
-} from '@/app/utils/addressUtil';
+} from '@/utils/addressUtil';
+import { getUserInfoField } from '@/utils/profileUtil';
 
 export interface Address {
   id: string;
   address: string;
   raw: {
     id: number;
+    contact: string;
     street: string;
     city: string;
     state: string;
@@ -47,8 +49,10 @@ const AddressModal: React.FC<AddressModalProps> = ({
   onSelectAddress,
 }) => {
   const [addresses, setAddresses] = useState<Address[]>([]);
+  const [userId, setUserId] = useState<number>(0);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [contact, setContact] = useState('');
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
   const [stateField, setStateField] = useState('');
@@ -57,24 +61,37 @@ const AddressModal: React.FC<AddressModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 
-  const userId = 1; // TODO: replace with actual authenticated user ID
-
   useEffect(() => {
-    if (modalVisible) loadAddresses();
+    if (modalVisible) {
+      loadAddresses();
+    }
   }, [modalVisible]);
 
-  // Load addresses and auto-select primary if available.
   const loadAddresses = async () => {
     setLoading(true);
+    // 1) fetch the userId
+    const id = await getUserInfoField('id');
+    setUserId(id);
+
+    // 2) if no id, bail out (you could also show an error state)
+    if (!id) {
+      setAddresses([]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const data = await AddressService.getAddressesByUserId(userId);
+      // 3) fetch the addresses
+      const data = await AddressService.getAddressesByUserId(id);
       const formatted: Address[] = data.map((a: any) => ({
         id: a.id.toString(),
-        address: `${a.street}, ${a.city}, ${a.state}, ${a.zip}, ${a.country}`,
+        address: `Address: ${a.street}, ${a.city}, ${a.state}, ${a.zip}, ${a.country}\nContact No: ${a.contact}`,
         raw: a,
       }));
+
       setAddresses(formatted);
-      // Auto-select primary address if exists.
+
+      // 4) auto-select primary
       const primary = formatted.find(
         (addr) => addr.raw.primary === true || addr.raw.status === 'PRIMARY'
       );
@@ -83,12 +100,14 @@ const AddressModal: React.FC<AddressModalProps> = ({
       }
     } catch (error) {
       console.error('Failed to load addresses', error);
+      setAddresses([]);
     } finally {
       setLoading(false);
     }
   };
 
   const resetForm = () => {
+    setContact('');
     setStreet('');
     setCity('');
     setStateField('');
@@ -101,11 +120,11 @@ const AddressModal: React.FC<AddressModalProps> = ({
     resetForm();
     setIsAdding(true);
   };
-
   const startEdit = (id: string) => {
-    const a = addresses.find(addr => addr.id === id);
+    const a = addresses.find((addr) => addr.id === id);
     if (!a) return;
     setEditId(id);
+    setContact(a.raw.contact);
     setStreet(a.raw.street);
     setCity(a.raw.city);
     setStateField(a.raw.state);
@@ -120,20 +139,22 @@ const AddressModal: React.FC<AddressModalProps> = ({
       if (editId) {
         const updated = await AddressService.updateAddress(Number(editId), {
           userId,
+          contact,
           street,
           city,
           state: stateField,
           zip,
-          country: FIXED_COUNTRY, // ensure the country remains fixed
+          country: FIXED_COUNTRY,
           status: 'RESERVE',
           primary: false,
         });
-        setAddresses(prev =>
-          prev.map(a =>
+        setAddresses((prev) =>
+          prev.map((a) =>
             a.id === editId
               ? {
                   id: updated.id.toString(),
                   address: formatAddress({
+                    contact: updated.contact,
                     street: updated.street,
                     city: updated.city,
                     province: updated.state,
@@ -145,9 +166,9 @@ const AddressModal: React.FC<AddressModalProps> = ({
           )
         );
       } else {
-        // Mark as primary if it's the first address.
         const isFirstAddress = addresses.length === 0;
         const created = await AddressService.createAddress({
+          contact,
           street,
           city,
           state: stateField,
@@ -156,11 +177,12 @@ const AddressModal: React.FC<AddressModalProps> = ({
           status: 'PRIMARY',
           primary: isFirstAddress,
         });
-        setAddresses(prev => [
+        setAddresses((prev) => [
           ...prev,
           {
             id: created.id.toString(),
             address: formatAddress({
+              contact: created.contact,
               street: created.street,
               city: created.city,
               province: created.state,
@@ -169,7 +191,6 @@ const AddressModal: React.FC<AddressModalProps> = ({
             raw: created,
           },
         ]);
-        // Auto-select the newly created address if it's the first one.
         if (isFirstAddress) {
           setSelectedAddressId(created.id.toString());
         }
@@ -184,8 +205,7 @@ const AddressModal: React.FC<AddressModalProps> = ({
   const handleDelete = async (id: string) => {
     try {
       await AddressService.deleteAddress(Number(id));
-      setAddresses(prev => prev.filter(a => a.id !== id));
-      // If the deleted address was selected, clear selection.
+      setAddresses((prev) => prev.filter((a) => a.id !== id));
       if (selectedAddressId === id) {
         setSelectedAddressId(null);
       }
@@ -194,19 +214,15 @@ const AddressModal: React.FC<AddressModalProps> = ({
     }
   };
 
-  // Instead of immediately selecting an address on tap,
-  // we now update the selectedAddressId.
   const handleSelect = (item: Address) => {
     setSelectedAddressId(item.id);
   };
 
-  // Confirm button in the modal calls handleConfirm.
   const handleConfirm = async () => {
     if (!selectedAddressId) return;
     try {
-      const selected = addresses.find(addr => addr.id === selectedAddressId);
+      const selected = addresses.find((addr) => addr.id === selectedAddressId);
       if (!selected) return;
-      // Optionally update the address on server to mark it primary.
       await AddressService.updateAddress(selected.raw.id, {
         ...selected.raw,
         userId,
@@ -215,7 +231,7 @@ const AddressModal: React.FC<AddressModalProps> = ({
       });
       onSelectAddress(selected.raw);
       setModalVisible(false);
-      loadAddresses(); // refresh to show updated primary address.
+      loadAddresses();
     } catch (error) {
       console.error('Error setting primary address', error);
     }
@@ -231,55 +247,89 @@ const AddressModal: React.FC<AddressModalProps> = ({
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Select or Add Address</Text>
+
           {loading ? (
             <ActivityIndicator size="large" color="#DD2222" />
           ) : (
             <View style={styles.addressContainer}>
               {!isAdding ? (
-                <>
-                  <FlatList
-                    data={addresses}
-                    keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
+                addresses.length === 0 ? (
+                  <View style={styles.noAddressContainer}>
+                    <Text style={styles.noAddressText}>No addresses found.</Text>
+                    <TouchableOpacity style={styles.addButton} onPress={startAdd}>
+                      <Text style={styles.addButtonText}>+ Add New Address</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.addButton, { marginTop: 10 }]} onPress={loadAddresses}>
+                      <Text style={styles.addButtonText}>⟳ Refresh</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    <FlatList
+                      data={addresses}
+                      keyExtractor={(item) => item.id}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity
+                          style={[
+                            styles.addressItem,
+                            selectedAddressId === item.id && styles.selectedAddressItem,
+                          ]}
+                          onPress={() => handleSelect(item)}
+                        >
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={[
+                                styles.addressText,
+                                item.raw.primary && styles.primaryAddress,
+                              ]}
+                            >
+                              {item.raw.primary ? '(Primary)\n' : ''}
+                              {item.address}
+                            </Text>
+                          </View>
+                          <View style={styles.addressActions}>
+                            <TouchableOpacity
+                              onPress={() => startEdit(item.id)}
+                              style={styles.actionButton}
+                            >
+                              <FontAwesome name="edit" size={20} color="#DD2222" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleDelete(item.id)}
+                              style={styles.actionButton}
+                            >
+                              <FontAwesome name="trash" size={20} color="#DD2222" />
+                            </TouchableOpacity>
+                          </View>
+                        </TouchableOpacity>
+                      )}
+                      ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+                    />
+                    <TouchableOpacity style={styles.addButton} onPress={startAdd}>
+                      <Text style={styles.addButtonText}>+ Add New Address</Text>
+                    </TouchableOpacity>
+                    {selectedAddressId && (
                       <TouchableOpacity
-                        style={[
-                          styles.addressItem,
-                          selectedAddressId === item.id && styles.selectedAddressItem,
-                        ]}
-                        onPress={() => handleSelect(item)}
+                        style={[styles.confirmButton, { marginTop: 15 }]}
+                        onPress={handleConfirm}
                       >
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.addressText, item.raw.primary && styles.primaryAddress]}>
-                            {item.address} {item.raw.primary ? '(Primary)' : ''}
-                          </Text>
-                        </View>
-                        <View style={styles.addressActions}>
-                          <TouchableOpacity onPress={() => startEdit(item.id)} style={styles.actionButton}>
-                            <FontAwesome name="edit" size={20} color="#DD2222" />
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.actionButton}>
-                            <FontAwesome name="trash" size={20} color="#DD2222" />
-                          </TouchableOpacity>
-                        </View>
+                        <Text style={styles.confirmButtonText}>Confirm Address</Text>
                       </TouchableOpacity>
                     )}
-                    ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-                  />
-                  <TouchableOpacity style={styles.addButton} onPress={startAdd}>
-                    <Text style={styles.addButtonText}>+ Add New Address</Text>
-                  </TouchableOpacity>
-                  {/* Confirm Selected Address Button */}
-                  {selectedAddressId && (
-                    <TouchableOpacity style={[styles.confirmButton, { marginTop: 15 }]} onPress={handleConfirm}>
-                      <Text style={styles.confirmButtonText}>Confirm Address</Text>
-                    </TouchableOpacity>
-                  )}
-                </>
+                  </>
+                )
               ) : (
+                // — Address form
                 <View style={styles.addressForm}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Street"
+                    placeholder="Contact No."
+                    value={contact}
+                    onChangeText={setContact}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Line 1 (Street, Barangay)"
                     value={street}
                     onChangeText={setStreet}
                   />
@@ -287,11 +337,11 @@ const AddressModal: React.FC<AddressModalProps> = ({
                   <View style={styles.pickerContainer}>
                     <Picker
                       selectedValue={city}
-                      onValueChange={(itemValue) => setCity(itemValue)}
+                      onValueChange={(v) => setCity(v)}
                     >
                       <Picker.Item label="Select City" value="" />
-                      {PHILIPPINE_CITIES.map((cityOption) => (
-                        <Picker.Item key={cityOption} label={cityOption} value={cityOption} />
+                      {PHILIPPINE_CITIES.map((opt) => (
+                        <Picker.Item key={opt} label={opt} value={opt} />
                       ))}
                     </Picker>
                   </View>
@@ -299,11 +349,11 @@ const AddressModal: React.FC<AddressModalProps> = ({
                   <View style={styles.pickerContainer}>
                     <Picker
                       selectedValue={stateField}
-                      onValueChange={(itemValue) => setStateField(itemValue)}
+                      onValueChange={(v) => setStateField(v)}
                     >
                       <Picker.Item label="Select Province" value="" />
-                      {PHILIPPINE_PROVINCES.map((provinceOption) => (
-                        <Picker.Item key={provinceOption} label={provinceOption} value={provinceOption} />
+                      {PHILIPPINE_PROVINCES.map((opt) => (
+                        <Picker.Item key={opt} label={opt} value={opt} />
                       ))}
                     </Picker>
                   </View>
@@ -318,7 +368,7 @@ const AddressModal: React.FC<AddressModalProps> = ({
                     style={styles.input}
                     placeholder="Country"
                     value={FIXED_COUNTRY}
-                    editable={false} // fixed country; disable editing
+                    editable={false}
                   />
                   <View style={styles.formButtons}>
                     <Button
@@ -340,6 +390,7 @@ const AddressModal: React.FC<AddressModalProps> = ({
               )}
             </View>
           )}
+
           <View style={styles.modalFooter}>
             <Button
               title="Close"
@@ -379,6 +430,15 @@ const styles = StyleSheet.create({
   },
   addressContainer: {
     width: '100%',
+  },
+  noAddressContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  noAddressText: {
+    fontSize: 16,
+    marginBottom: 10,
+    color: '#666',
   },
   addressItem: {
     flexDirection: 'row',

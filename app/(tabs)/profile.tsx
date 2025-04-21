@@ -13,10 +13,10 @@ import {
 import { FontAwesome } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import AddressModal from '@/components/AddressModal';
-import { getProfileDetails, getName } from '../utils/profileUtil';
-import { removeAuthToken } from '../services/authService';
+import { getProfileDetails, getName, clearAllStorage } from '../../utils/profileUtil';
+import { removeAuthToken } from '../../services/authService';
+import Toast from 'react-native-toast-message';
 
-const router = useRouter();
 const quickActions = [
   { icon: 'shopping-bag', label: 'Orders', route: '/orders', type: 'link' },
   { icon: 'shopping-cart', label: 'Cart', route: '/cart', type: 'link' },
@@ -123,6 +123,8 @@ const menuItems = [
 ];
 
 const ProfileScreen: React.FC = () => {
+  const router = useRouter();
+
   const [modalVisible, setModalVisible] = useState(false);
   const [modalContentType, setModalContentType] = useState<string | null>(null);
   const [userName, setUserName] = useState<String>('John Doe');
@@ -151,9 +153,15 @@ const ProfileScreen: React.FC = () => {
   
     setProfileDeets();
   }, []);
+
   const handleLogOut = async() =>{
-    await removeAuthToken();
-    router.replace('/authScreen');
+    await clearAllStorage();
+    router.replace('/authScreen')
+
+    Toast.show({
+      type: 'success',
+      text1: 'Successfully Logged Out',
+    });
   } 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -197,12 +205,12 @@ const ProfileScreen: React.FC = () => {
           >
             {item.route ? (
               <Link href={item.route}>
-                <FontAwesome name={item.icon} size={20} color="red" />
+                <FontAwesome name={item.icon} size={20} color="#DD2222" />
                 <Text style={styles.menuText}>{item.label}</Text>
               </Link>
             ) : (
               <>
-                <FontAwesome name={item.icon} size={20} color="red" />
+                <FontAwesome name={item.icon} size={20} color="#DD2222" />
                 <Text style={styles.menuText}>{item.label}</Text>
               </>
             )}
@@ -244,7 +252,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   header: {
-    backgroundColor: 'red',
+    backgroundColor: '#DD2222',
     alignItems: 'center',
     padding: 20,
     marginBottom: 50,
@@ -274,7 +282,7 @@ const styles = StyleSheet.create({
   quickActions: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: 'red',
+    backgroundColor: '#DD2222',
     paddingVertical: 15,
   },
   actionButton: {

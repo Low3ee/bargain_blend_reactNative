@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,18 +7,33 @@ import {
   StyleSheet,
   Dimensions,
   TouchableOpacity,
+  Modal,
+  FlatList,
+  ActivityIndicator,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
-import { Product, getProduct, getProductsByCategory } from '@/app/services/productService';
-import { addToCartLocal } from '@/app/utils/cartStorage';
-import { addToFavorite, isProductInFavorites, removeFromFavorite } from '@/app/services/wishlistService';
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+import {
+  Product,
+  getProduct,
+  getProductsByCategory,
+} from '@/services/productService';
+import { addToCartLocal } from '@/utils/cartStorage';
+import {
+  addToFavorite,
+  isProductInFavorites,
+  removeFromFavorite,
+} from '@/services/wishlistService';
 
-const ImageCarousel: React.FC<{ images: { url: string; order: number }[] }> = ({ images }) => {
+const { width: screenWidth } = Dimensions.get('window');
+
+const ImageCarousel: React.FC<{ images: { url: string; order: number }[] }> = ({
+  images,
+}) => {
+  const slides = images.length > 0 ? images : [{ url: '', order: 0 }];
   return (
     <ScrollView
       horizontal
@@ -26,127 +41,119 @@ const ImageCarousel: React.FC<{ images: { url: string; order: number }[] }> = ({
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.carouselContainer}
     >
-      {(images.length > 0 ? images : [{ url: '', order: 0 }]).map((item, index) => (
-        <Image
-          key={index}
-          source={{ uri: item.url }}
-          style={styles.carouselImage}
-        />
+      {slides.map((item, idx) => (
+        <Image key={idx} source={{ uri: item.url }} style={styles.carouselImage} />
       ))}
     </ScrollView>
   );
 };
 
 const ProductDetailsScreen: React.FC = () => {
-  // Get the product ID from local search params.
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
   const [product, setProduct] = useState<Product | null>(null);
-  const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [isFavorite, setIsFavorite] = useState<boolean>(false);
+  const [recommended, setRecommended] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isFavorite, setIsFavorite] = useState(false);
 
-  const handleToggleFavorite = async () => {
-    try {
-      if (isFavorite) {
-        if (product) {
-          await removeFromFavorite(Number(product.id));
-        }
-        setIsFavorite(false);
-      } else {
-        if (product) {
-          await addToFavorite(Number(product.id));
-        }
-        setIsFavorite(true);
-      }
-    } catch (error) {
-      console.error('Error toggling favorite:', error);
-    }
-  };
+  const [selectedVariant, setSelectedVariant] = useState<any>(null);
+  const [variantModalVisible, setVariantModalVisible] = useState(false);
 
-  // Fetch product by ID.
-  useEffect(() => {
-    if (id) {
-      // console.log('Fetching product with ID:', id);
-      setLoading(true);
-      getProduct(id)
-        .then((prod) => setProduct(prod))
-        .catch((err) => console.error('Error loading product:', err))
-        .finally(() => setLoading(false));
-    }
-
-  }, [id]);
-
+  // Load product
   useEffect(() => {
     if (!id) return;
-
-    const checkFavoriteStatus = async () => {
-      try {
-        const isFav = await isProductInFavorites(Number(id));
-        // console.log('Favorite status:', isFav);
-        setIsFavorite(isFav);
-      } catch (error) {
-        console.error('Error checking favorite status:', error);
-      }
-    };
-
-    // Ensure the favorite status is checked before rendering
     setLoading(true);
-    checkFavoriteStatus().finally(() => setLoading(false));
+    getProduct(id)
+      .then(setProduct)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, [id]);
 
+ const navigation = useNavigation();
+     useEffect(() => {
+         navigation.setOptions({
+             headerShown: false,
+         });
+     }, [navigation]);
+  // Check favorite status
   useEffect(() => {
-    if (product && product.categoryId) {
-      getProductsByCategory(product.categoryId)
-        .then((data) => {
-          const recs = data.filter((p) => p.id !== product.id);
-          setRecommendedProducts(recs.slice(0, 4));
-        })
-        .catch((err) => console.error('Error fetching recommended products:', err));
-    }
+    if (!id) return;
+    isProductInFavorites(Number(id))
+      .then(setIsFavorite)
+      .catch(console.error);
+  }, [id]);
+
+  // Load recommendations
+  useEffect(() => {
+    if (!product?.categoryId) return;
+    getProductsByCategory(product.categoryId)
+      .then((all) =>
+        setRecommended(all.filter((p) => p.id !== product.id).slice(0, 4))
+      )
+      .catch(console.error);
   }, [product]);
 
-  // Handle Add to Cart functionality with toast messages.
-  const handleAddToCart = async () => {
+  const handleToggleFavorite = useCallback(async () => {
     if (!product) return;
-    const newCartItem = {
-      id: parseInt(product.id),
-      name: product.name,
-      price: product.price,
-      image: product.image,
-      quantity: 1,
-    };
+    try {
+      if (isFavorite) {
+        await removeFromFavorite(Number(product.id));
+      } else {
+        await addToFavorite(Number(product.id));
+      }
+      setIsFavorite((f) => !f);
+    } catch (err) {
+      console.error(err);
+      Toast.show({ type: 'error', text1: 'Could not update favorites.' });
+    }
+  }, [isFavorite, product]);
 
-    const success = await addToCartLocal(newCartItem, () => {
-      router.push('/authScreen');
-    });
-
-    if (success) {
-      Toast.show({
-        type: 'success',
-        text1: 'Added to Cart',
-        text2: `${product.name} has been added to your cart.`,
-        position: 'bottom',
-      });
-    } else {
-      Toast.show({
+  const handleAddToCart = useCallback(async () => {
+    if (!product) return;
+    if (product.variants.length > 1 && !selectedVariant) {
+      return Toast.show({
         type: 'error',
-        text1: 'Add to Cart Failed',
-        text2: 'Please login or try again.',
-        position: 'bottom',
+        text1: 'Please select a variant first.',
       });
     }
+
+    const variant = selectedVariant ?? product.variants[0];
+    const newCartItem = {
+      id: Number(product.id),
+      productId: Number(product.id),
+      name: `${product.name}${
+        variant.size ? ' • ' + variant.size : ''
+      }${variant.color ? ' • ' + variant.color : ''}`,
+      price: variant.price ?? product.price,
+      image: product.images?.[0]?.url ?? '',
+      quantity: 1,
+      variantId: variant.id,
+      size: variant.size,
+      color: variant.color,
+    };
+
+    const success = await addToCartLocal(newCartItem);
+    Toast.show({
+      type: success ? 'success' : 'error',
+      text1: success ? 'Added to Cart' : 'Add to Cart Failed',
+    });
+    if (success) router.push('/cart');
+  }, [product, selectedVariant, router]);
+
+  const openVariantPicker = () => setVariantModalVisible(true);
+  const onSelectVariant = (v: any) => {
+    setSelectedVariant(v);
+    setVariantModalVisible(false);
   };
 
   if (loading) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.loadingText}>Loading product...</Text>
+        <ActivityIndicator size="large" color="#E91E63" />
       </View>
     );
   }
-
   if (!product) {
     return (
       <View style={styles.centered}>
@@ -159,6 +166,9 @@ const ProductDetailsScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       {/* Top Navbar */}
       <View style={styles.topNav}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <FontAwesome name="chevron-left" size={24} color="#333" />
+        </TouchableOpacity>
         <Text style={styles.screenTitle}>Product Details</Text>
         <TouchableOpacity onPress={() => router.push('/cart')}>
           <FontAwesome name="shopping-cart" size={24} color="#333" />
@@ -166,23 +176,17 @@ const ProductDetailsScreen: React.FC = () => {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Image Carousel */}
-        {product.images && product.images.length > 0 ? (
-          <ImageCarousel images={product.images} />
-        ) : (
-          <Image source={{ uri: product.image }} style={styles.carouselImage} />
-        )}
+        <ImageCarousel images={product.images || []} />
 
-        {/* Product Details */}
         <View style={styles.detailsContainer}>
           <Text style={styles.productTitle}>{product.name}</Text>
           <Text style={styles.productPrice}>₱ {product.price.toFixed(2)}</Text>
           <Text style={styles.productDescription}>{product.description}</Text>
           <View style={styles.starContainer}>
-            {Array.from({ length: 5 }).map((_, index) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <FontAwesome
-                key={index}
-                name={index < product.rating ? 'star' : 'star-o'}
+                key={i}
+                name={i < Math.round(product.rating) ? 'star' : 'star-o'}
                 size={20}
                 color="#FFD700"
               />
@@ -190,18 +194,20 @@ const ProductDetailsScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Recommended Products */}
-        {recommendedProducts.length > 0 && (
+        {recommended.length > 0 && (
           <View style={styles.recommendationContainer}>
-            <Text style={styles.recommendationTitle}>Recommended Products</Text>
+            <Text style={styles.recommendationTitle}>Recommended</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {recommendedProducts.map((item) => (
+              {recommended.map((item) => (
                 <TouchableOpacity
                   key={item.id}
                   style={styles.recommendationCard}
                   onPress={() => router.push(`/product/${item.id}`)}
                 >
-                  <Image source={{ uri: item.image }} style={styles.recommendationImage} />
+                  <Image
+                    source={{ uri: item.images?.[0]?.url ?? '' }}
+                    style={styles.recommendationImage}
+                  />
                   <Text style={styles.recommendationName}>{item.name}</Text>
                 </TouchableOpacity>
               ))}
@@ -210,171 +216,200 @@ const ProductDetailsScreen: React.FC = () => {
         )}
       </ScrollView>
 
-      {/* Bottom Buttons */}
-      <View style={styles.bottomButtons}>
-        <TouchableOpacity style={styles.favoriteButton} onPress={handleToggleFavorite}>
-          <FontAwesome name={isFavorite ? 'heart' : 'heart-o'} size={24} color={isFavorite ? 'red' : 'black'} />
+      {/* Variant Selector */}
+      {product.variants.length > 1 && (
+        <TouchableOpacity style={styles.variantBtn} onPress={openVariantPicker}>
+          <Text style={styles.variantBtnText}>
+            {selectedVariant
+              ? `Variant: ${selectedVariant.size || ''} ${selectedVariant.color || ''}`
+              : 'Choose Variant'}
+          </Text>
+          <FontAwesome name="angle-down" size={20} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.addToCartButton} onPress={handleAddToCart}>
-          <FontAwesome name="shopping-cart" size={20} color="#fff" style={styles.cartIcon} />
-          <Text style={styles.addToCartText}>Add to Cart</Text>
+      )}
+
+      {/* Action Buttons */}
+      <View style={styles.actionsRow}>
+        <TouchableOpacity
+          style={[
+            styles.addToCartButton,
+            product.variants.length > 1 && !selectedVariant
+              ? styles.addDisabled
+              : {},
+          ]}
+          onPress={handleAddToCart}
+          disabled={product.variants.length > 1 && !selectedVariant}
+        >
+          <FontAwesome
+            name="shopping-cart"
+            size={20}
+            color="#fff"
+            style={styles.actionIcon}
+          />
+          <Text style={styles.actionText}>Add to Cart</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.favoriteButton}
+          onPress={handleToggleFavorite}
+          accessibilityLabel={
+            isFavorite ? 'Remove from favorites' : 'Add to favorites'
+          }
+        >
+          <FontAwesome
+            name={isFavorite ? 'heart' : 'heart-o'}
+            size={24}
+            color={isFavorite ? '#E91E63' : '#555'}
+          />
         </TouchableOpacity>
       </View>
+
+      {/* Variant Picker Modal */}
+      <Modal
+        visible={variantModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setVariantModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPressOut={() => setVariantModalVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select a Variant</Text>
+            <FlatList
+              data={product.variants}
+              keyExtractor={(v) => String(v.id)}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.variantOption}
+                  onPress={() => onSelectVariant(item)}
+                >
+                  <Text>
+                    {item.size || ''} • {item.color || ''} • {item.condition || ''} — ₱
+                    {(item.price ?? product.price).toFixed(2)}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <Toast />
     </SafeAreaView>
   );
 };
 
-export default ProductDetailsScreen;
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { color: 'red', fontSize: 18 },
+
   topNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: screenWidth * 0.05,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
+    padding: 10,
     borderBottomWidth: 1,
     borderColor: '#eee',
   },
-  screenTitle: {
-    fontSize: screenWidth < 500 ? 20 : 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  scrollContent: {
-    paddingBottom: 140,
-  },
-  carouselContainer: {
-    backgroundColor: '#fff',
-  },
+  screenTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+
+  scrollContent: { paddingBottom: 140 },
   carouselImage: {
     width: screenWidth,
     height: screenWidth * 0.75,
     resizeMode: 'contain',
     backgroundColor: '#fff',
   },
-  detailsContainer: {
-    paddingHorizontal: screenWidth * 0.05,
-    paddingVertical: 10,
-  },
-  productTitle: {
-    fontSize: screenWidth < 500 ? 26 : 32,
-    fontWeight: 'bold',
-    color: '#222',
-    marginBottom: 4,
-  },
+
+  detailsContainer: { padding: 16 },
+  productTitle: { fontSize: 28, fontWeight: 'bold', color: '#222' },
   productPrice: {
-    fontSize: screenWidth < 500 ? 28 : 32,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#E91E63',
-    marginBottom: 10,
+    marginVertical: 8,
   },
-  productDescription: {
-    fontSize: screenWidth < 500 ? 16 : 18,
-    color: '#444',
-    lineHeight: 24,
-    marginBottom: 10,
-  },
-  starContainer: {
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
-  recommendationContainer: {
-    paddingHorizontal: screenWidth * 0.05,
-    paddingVertical: 10,
-  },
-  recommendationTitle: {
-    fontSize: screenWidth < 500 ? 20 : 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
-  },
+  productDescription: { fontSize: 16, color: '#444', lineHeight: 22 },
+  starContainer: { flexDirection: 'row', marginVertical: 8 },
+
+  recommendationContainer: { padding: 16 },
+  recommendationTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
   recommendationCard: {
-    marginRight: 10,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    padding: 10,
+    marginRight: 12,
     width: screenWidth * 0.4,
     alignItems: 'center',
   },
   recommendationImage: {
     width: '100%',
     height: screenWidth * 0.4,
-    resizeMode: 'contain',
     borderRadius: 8,
-    marginBottom: 6,
   },
   recommendationName: {
-    fontSize: screenWidth < 500 ? 14 : 16,
+    fontSize: 14,
     fontWeight: 'bold',
     textAlign: 'center',
+    marginTop: 4,
   },
-  bottomButtons: {
+
+  variantBtn: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: screenWidth * 0.05,
-    borderTopWidth: 1,
-    borderColor: '#ddd',
-  },
-  favoriteButton: {
-    backgroundColor: '#fff',
-    borderColor: '#000000',
     padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderWidth: 1,
     borderRadius: 8,
+    borderColor: '#ccc',
+  },
+  variantBtnText: { flex: 1, fontSize: 16 },
+
+  actionsRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    width: 50,
-    height: 50,
+    marginHorizontal: 16,
+    marginBottom: 16,
   },
   addToCartButton: {
+    flex: 1,
     flexDirection: 'row',
+    padding: 16,
     backgroundColor: '#ff6666',
-    paddingVertical: 14,
-    paddingHorizontal: 30,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  addDisabled: { backgroundColor: '#ccc' },
+  actionIcon: { marginRight: 8 },
+  actionText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+
+  favoriteButton: {
+    marginLeft: 12,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+
+  // Modal
+  modalOverlay: {
     flex: 1,
-    marginLeft: 10,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
   },
-  cartIcon: {
-    marginRight: 8,
+  modalContent: {
+    backgroundColor: '#fff',
+    maxHeight: '40%',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    padding: 16,
   },
-  addToCartText: {
-    color: '#fff',
-    fontSize: screenWidth < 500 ? 18 : 20,
-    fontWeight: 'bold',
-  },
-  loadingText: {
-    fontSize: screenWidth < 500 ? 18 : 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  errorText: {
-    fontSize: screenWidth < 500 ? 18 : 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    color: 'red',
-    marginTop: 20,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
+  variantOption: { paddingVertical: 10, borderBottomWidth: 1, borderColor: '#eee' },
+  carouselContainer: {},
 });
+
+export default ProductDetailsScreen;
