@@ -11,7 +11,7 @@ import {
   FlatList,
   ActivityIndicator,
 } from 'react-native';
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -32,21 +32,28 @@ const { width: screenWidth } = Dimensions.get('window');
 
 const ImageCarousel: React.FC<{ images: { url: string; order: number }[] }> = ({
   images,
-}) => {
-  const slides = images.length > 0 ? images : [{ url: '', order: 0 }];
-  return (
-    <ScrollView
-      horizontal
-      pagingEnabled
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.carouselContainer}
-    >
-      {slides.map((item, idx) => (
-        <Image key={idx} source={{ uri: item.url }} style={styles.carouselImage} />
-      ))}
-    </ScrollView>
-  );
-};
+}) => (
+  <ScrollView
+    horizontal
+    pagingEnabled
+    showsHorizontalScrollIndicator={false}
+    contentContainerStyle={styles.carouselContainer}
+  >
+    {images.length > 0
+      ? images.map((item, idx) => (
+          <Image
+            key={idx}
+            source={{ uri: item.url }}
+            style={styles.carouselImage}
+          />
+        ))
+      : (
+          <View style={[styles.carouselImage, styles.centered]}>
+            <Text>No Image</Text>
+          </View>
+        )}
+  </ScrollView>
+);
 
 const ProductDetailsScreen: React.FC = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -57,7 +64,7 @@ const ProductDetailsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
 
-  const [selectedVariant, setSelectedVariant] = useState<any>(null);
+  const [selectedVariant, setSelectedVariant] = useState<Product['variants'][number] | null>(null);
   const [variantModalVisible, setVariantModalVisible] = useState(false);
 
   // Load product
@@ -66,16 +73,13 @@ const ProductDetailsScreen: React.FC = () => {
     setLoading(true);
     getProduct(id)
       .then(setProduct)
-      .catch(console.error)
+      .catch(err => {
+        console.error(err);
+        Toast.show({ type: 'error', text1: 'Error loading product' });
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
- const navigation = useNavigation();
-     useEffect(() => {
-         navigation.setOptions({
-             headerShown: false,
-         });
-     }, [navigation]);
   // Check favorite status
   useEffect(() => {
     if (!id) return;
@@ -88,12 +92,13 @@ const ProductDetailsScreen: React.FC = () => {
   useEffect(() => {
     if (!product?.categoryId) return;
     getProductsByCategory(product.categoryId)
-      .then((all) =>
-        setRecommended(all.filter((p) => p.id !== product.id).slice(0, 4))
+      .then(all =>
+        setRecommended(all.filter(p => p.id !== product.id).slice(0, 4))
       )
       .catch(console.error);
   }, [product]);
 
+  // Toggle favorite
   const handleToggleFavorite = useCallback(async () => {
     if (!product) return;
     try {
@@ -102,25 +107,28 @@ const ProductDetailsScreen: React.FC = () => {
       } else {
         await addToFavorite(Number(product.id));
       }
-      setIsFavorite((f) => !f);
-    } catch (err) {
-      console.error(err);
+      setIsFavorite(f => !f);
+    } catch {
       Toast.show({ type: 'error', text1: 'Could not update favorites.' });
     }
   }, [isFavorite, product]);
 
+  // Add to cart, with stock check
   const handleAddToCart = useCallback(async () => {
     if (!product) return;
-    if (product.variants.length > 1 && !selectedVariant) {
+    const variant = selectedVariant ?? product.variants[0];
+    const stock = variant.stock ?? 0;
+
+    if (stock < 1) {
       return Toast.show({
         type: 'error',
-        text1: 'Please select a variant first.',
+        text1: 'Out of Stock',
+        text2: 'Cannot add this variant to cart.',
       });
     }
 
-    const variant = selectedVariant ?? product.variants[0];
     const newCartItem = {
-      id: Number(product.id),
+      id: product.id.toString(),
       productId: Number(product.id),
       name: `${product.name}${
         variant.size ? ' • ' + variant.size : ''
@@ -128,7 +136,7 @@ const ProductDetailsScreen: React.FC = () => {
       price: variant.price ?? product.price,
       image: product.images?.[0]?.url ?? '',
       quantity: 1,
-      variantId: variant.id,
+      variantId: Number(variant.id),
       size: variant.size,
       color: variant.color,
     };
@@ -140,12 +148,6 @@ const ProductDetailsScreen: React.FC = () => {
     });
     if (success) router.push('/cart');
   }, [product, selectedVariant, router]);
-
-  const openVariantPicker = () => setVariantModalVisible(true);
-  const onSelectVariant = (v: any) => {
-    setSelectedVariant(v);
-    setVariantModalVisible(false);
-  };
 
   if (loading) {
     return (
@@ -162,9 +164,13 @@ const ProductDetailsScreen: React.FC = () => {
     );
   }
 
+  // Determine default variant stock
+  const defaultVariant = selectedVariant ?? product.variants[0];
+  const defaultStock = defaultVariant.stock ?? 0;
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Top Navbar */}
+      {/* Top Nav */}
       <View style={styles.topNav}>
         <TouchableOpacity onPress={() => router.back()}>
           <FontAwesome name="chevron-left" size={24} color="#333" />
@@ -180,8 +186,23 @@ const ProductDetailsScreen: React.FC = () => {
 
         <View style={styles.detailsContainer}>
           <Text style={styles.productTitle}>{product.name}</Text>
-          <Text style={styles.productPrice}>₱ {product.price.toFixed(2)}</Text>
+          <Text style={styles.productPrice}>
+            ₱ {(selectedVariant?.price ?? product.price).toFixed(2)}
+          </Text>
           <Text style={styles.productDescription}>{product.description}</Text>
+
+          {/* Stock Badge */}
+          <Text
+            style={[
+              styles.stockBadge,
+              defaultStock > 0 ? styles.inStock : styles.outOfStock,
+            ]}
+          >
+            {defaultStock > 0
+              ? `In Stock: ${defaultStock}`
+              : 'Out of Stock'}
+          </Text>
+
           <View style={styles.starContainer}>
             {Array.from({ length: 5 }).map((_, i) => (
               <FontAwesome
@@ -198,7 +219,7 @@ const ProductDetailsScreen: React.FC = () => {
           <View style={styles.recommendationContainer}>
             <Text style={styles.recommendationTitle}>Recommended</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {recommended.map((item) => (
+              {recommended.map(item => (
                 <TouchableOpacity
                   key={item.id}
                   style={styles.recommendationCard}
@@ -216,9 +237,12 @@ const ProductDetailsScreen: React.FC = () => {
         )}
       </ScrollView>
 
-      {/* Variant Selector */}
+      {/* Variant Picker */}
       {product.variants.length > 1 && (
-        <TouchableOpacity style={styles.variantBtn} onPress={openVariantPicker}>
+        <TouchableOpacity
+          style={styles.variantBtn}
+          onPress={() => setVariantModalVisible(true)}
+        >
           <Text style={styles.variantBtnText}>
             {selectedVariant
               ? `Variant: ${selectedVariant.size || ''} ${selectedVariant.color || ''}`
@@ -228,17 +252,15 @@ const ProductDetailsScreen: React.FC = () => {
         </TouchableOpacity>
       )}
 
-      {/* Action Buttons */}
+      {/* Action Row */}
       <View style={styles.actionsRow}>
         <TouchableOpacity
           style={[
             styles.addToCartButton,
-            product.variants.length > 1 && !selectedVariant
-              ? styles.addDisabled
-              : {},
+            defaultStock < 1 && styles.addDisabled,
           ]}
           onPress={handleAddToCart}
-          disabled={product.variants.length > 1 && !selectedVariant}
+          disabled={defaultStock < 1}
         >
           <FontAwesome
             name="shopping-cart"
@@ -264,7 +286,7 @@ const ProductDetailsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Variant Picker Modal */}
+      {/* Variant Modal */}
       <Modal
         visible={variantModalVisible}
         transparent
@@ -280,15 +302,18 @@ const ProductDetailsScreen: React.FC = () => {
             <Text style={styles.modalTitle}>Select a Variant</Text>
             <FlatList
               data={product.variants}
-              keyExtractor={(v) => String(v.id)}
+              keyExtractor={v => String(v.id)}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.variantOption}
-                  onPress={() => onSelectVariant(item)}
+                  onPress={() => {
+                    setSelectedVariant(item);
+                    setVariantModalVisible(false);
+                  }}
                 >
                   <Text>
                     {item.size || ''} • {item.color || ''} • {item.condition || ''} — ₱
-                    {(item.price ?? product.price).toFixed(2)}
+                    {(item.price ?? product.price).toFixed(2)} ({item.stock ?? 0} in stock)
                   </Text>
                 </TouchableOpacity>
               )}
@@ -392,6 +417,24 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#ccc',
+  },
+
+  stockBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  inStock: {
+    backgroundColor: '#d4edda',
+    color: '#155724',
+  },
+  outOfStock: {
+    backgroundColor: '#f8d7da',
+    color: '#721c24',
   },
 
   // Modal

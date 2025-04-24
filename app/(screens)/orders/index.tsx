@@ -9,7 +9,7 @@ import {
   Image, 
   ScrollView 
 } from 'react-native';
-import { useNavigation, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Order, fetchOrders, fetchOrderById } from '@/services/orderService';
 import { getAuthToken } from '@/services/authService';
 import Toast from 'react-native-toast-message';
@@ -86,9 +86,10 @@ const OrderListScreen = () => {
       }
 
       const orderDetails = await fetchOrderById(token, order.id);
+      console.log('Order Details:', orderDetails);
       const orderItemsDetailed: OrderItemWithProduct[] = await Promise.all(
         orderDetails.orderItems.map(async (item: any) => {
-          const product = await getProduct(item.productId.toString());
+          const product = await getProduct(item.id.toString());
           return {
             id: item.id,
             quantity: item.quantity,
@@ -113,10 +114,9 @@ const OrderListScreen = () => {
     }
   };
 
-  // Filtering logic: Make sure order.status matches one of the statuses exactly.
   const filteredOrders = selectedStatus === 'All'
     ? orders
-    : orders.filter(order => order.status === selectedStatus.toLocaleLowerCase());
+    : orders.filter(order => order.status.toLowerCase() === selectedStatus.toLowerCase()); // Fixed status comparison
 
   const renderOrderItem = ({ item }: { item: Order }) => {
     const isExpanded = expandedOrder?.id === item.id;
@@ -124,7 +124,7 @@ const OrderListScreen = () => {
       <TouchableOpacity style={styles.card} onPress={() => toggleExpandOrder(item)}>
         <View style={styles.cardHeader}>
           <View style={styles.statusBadge}>
-            <Text style={styles.statusText}>{item.status.toLocaleUpperCase()}</Text>
+            <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
           </View>
         </View>
 
@@ -311,7 +311,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#000',
   },
-  // Collapsed info styling (for when the order is not expanded)
   collapsedInfo: {
     marginTop: 8,
   },

@@ -1,3 +1,4 @@
+// src/screens/Cart.tsx
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
@@ -14,26 +15,33 @@ import {
   getCartItems,
   updateCartItemQuantityLocal,
   removeCartItemLocal,
-  clearCartLocal,
-  CartItem,
-  addToCartLocal,
 } from '@/utils/cartStorage';
 import { syncCartWithBackend } from '@/services/cartService';
 import { getProductStock } from '@/services/productService';
 import Toast from 'react-native-toast-message';
 import { router } from 'expo-router';
-import { getProfileDetails } from '../../utils/profileUtil';
+import { getProfileDetails } from '@/utils/profileUtil';
 
 const screenWidth = Dimensions.get('window').width;
 
-type CartItemWithStock = CartItem & { stock: number };
+type CartItemWithStock = {
+  id: string;
+  productId: number;
+  name: string;
+  image: string;
+  price: number;
+  quantity: number;
+  variantId: number;
+  size?: string;
+  color?: string;
+  stock: number;
+};
 
 const Cart: React.FC = () => {
   const [items, setItems] = useState<CartItemWithStock[]>([]);
-  const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [selectedVariants, setSelectedVariants] = useState<number[]>([]);
 
   useEffect(() => {
-
     (async () => {
       const isLoggedIn = await getProfileDetails();
       if (!isLoggedIn) {
@@ -44,19 +52,20 @@ const Cart: React.FC = () => {
         });
         router.push('/authScreen');
         return;
-
       }
-      const raw = await getCartItems();
+  
+      const raw = await getCartItems(); // contains id
       const withStock = await Promise.all(
         raw.map(async item => ({
           ...item,
-          stock: await getProductStock(item.id.toString()),
+          stock: await getProductStock(item.variantId.toString()),
         }))
       );
+  
       const adjusted = await Promise.all(
         withStock.map(async item => {
           if (item.quantity > item.stock) {
-            await updateCartItemQuantityLocal(item.id, item.stock);
+            await updateCartItemQuantityLocal(item.variantId, item.stock);
             Toast.show({
               type: 'info',
               text1: 'Stock Adjusted',
@@ -67,27 +76,37 @@ const Cart: React.FC = () => {
           return item;
         })
       );
+  
+      console.log("adjusted cart items:", adjusted);
       setItems(adjusted);
-      setSelectedItems(adjusted.filter(i => i.stock > 0).map(i => i.id));
+      setSelectedVariants(adjusted.filter(i => i.stock > 0).map(i => i.variantId));
     })();
   }, []);
+  
+  
 
-  const toggleSelectItem = (itemId: number) => {
-    setSelectedItems(prev =>
-      prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]
+  const toggleSelectVariant = (variantId: number) => {
+    setSelectedVariants(prev =>
+      prev.includes(variantId)
+        ? prev.filter(id => id !== variantId)
+        : [...prev, variantId]
     );
   };
 
-  const updateQuantity = async (itemId: number, type: 'inc' | 'dec') => {
+  const updateQuantity = (variantId: number, type: 'inc' | 'dec') => {
     setItems(prev =>
       prev.map(item => {
-        if (item.id !== itemId) return item;
+        if (item.variantId !== variantId) return item;
+  
         const max = item.stock;
-        const newQty = type === 'inc'
-          ? Math.min(item.quantity + 1, max)
-          : Math.max(item.quantity - 1, 1);
-        if (newQty !== item.quantity) {
-          updateCartItemQuantityLocal(itemId, newQty);
+        const currentQty = Number(item.quantity) || 1;
+        const newQty =
+          type === 'inc'
+            ? Math.min(currentQty + 1, max)
+            : Math.max(currentQty - 1, 1);
+  
+        if (newQty !== currentQty) {
+          updateCartItemQuantityLocal(variantId, newQty);
         } else if (type === 'inc') {
           Toast.show({
             type: 'info',
@@ -95,15 +114,16 @@ const Cart: React.FC = () => {
             text2: `Only ${max} available.`,
           });
         }
+  
         return { ...item, quantity: newQty };
       })
     );
   };
-
-  const removeItem = async (itemId: number) => {
-    await removeCartItemLocal(itemId);
-    setItems(prev => prev.filter(i => i.id !== itemId));
-    setSelectedItems(prev => prev.filter(id => id !== itemId));
+  
+  const removeItem = async (variantId: number) => {
+    await removeCartItemLocal(variantId);
+    setItems(prev => prev.filter(i => i.variantId !== variantId));
+    setSelectedVariants(prev => prev.filter(id => id !== variantId));
     Toast.show({ type: 'success', text1: 'Removed', text2: 'Item removed from cart.' });
   };
 
@@ -112,15 +132,29 @@ const Cart: React.FC = () => {
 
   const handleCheckout = async (useSelected: boolean) => {
     const toCheckout = useSelected
-      ? items.filter(i => selectedItems.includes(i.id) && i.stock > 0)
+      ? items.filter(i => selectedVariants.includes(i.variantId) && i.stock > 0)
       : items.filter(i => i.stock > 0);
+
     if (!toCheckout.length) {
-      Toast.show({ type: 'error', text1: useSelected ? 'No items selected' : 'Cart is empty' });
+      Toast.show({
+        type: 'error',
+        text1: useSelected ? 'No items selected' : 'Cart is empty',
+      });
       return;
     }
+
     try {
-      await syncCartWithBackend(toCheckout);
-      // await clearCartLocal();
+      await syncCartWithBackend(
+        toCheckout.map(i => ({
+          id: i.id,
+          productId: i.productId,
+          variantId: i.variantId,
+          name: i.name,
+          image: i.image,
+          quantity: i.quantity,
+          price: i.price,
+        }))
+      );
       router.push('/checkout');
     } catch {
       Toast.show({ type: 'error', text1: 'Checkout Failed', text2: 'Try again later.' });
@@ -129,13 +163,17 @@ const Cart: React.FC = () => {
 
   const renderHeader = () => (
     <View style={styles.selectionHeader}>
-      <TouchableOpacity onPress={() => setSelectedItems(items.filter(i => i.stock > 0).map(i => i.id))}>
+      <TouchableOpacity
+        onPress={() =>
+          setSelectedVariants(items.filter(i => i.stock > 0).map(i => i.variantId))
+        }
+      >
         <Text style={styles.selectionText}>Select All</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => setSelectedItems([])}>
+      <TouchableOpacity onPress={() => setSelectedVariants([])}>
         <Text style={styles.selectionText}>Clear All</Text>
       </TouchableOpacity>
-      <Text style={styles.selectionText}>{selectedItems.length} Selected</Text>
+      <Text style={styles.selectionText}>{selectedVariants.length} Selected</Text>
     </View>
   );
 
@@ -147,31 +185,53 @@ const Cart: React.FC = () => {
           {outOfStock ? (
             <Text style={styles.unavailableText}>Unavailable</Text>
           ) : (
-            <TouchableOpacity onPress={() => toggleSelectItem(item.id)}>
+            <TouchableOpacity onPress={() => toggleSelectVariant(item.variantId)}>
               <FontAwesome
-                name={selectedItems.includes(item.id) ? 'check-square' : 'square-o'}
+                name={selectedVariants.includes(item.variantId) ? 'check-square' : 'square-o'}
                 size={24}
                 color="#D6003A"
               />
             </TouchableOpacity>
           )}
         </View>
+
         <Image source={{ uri: item.image }} style={styles.productImage} />
+
         <View style={styles.productDetails}>
           <Text style={styles.productName}>{item.name}</Text>
           {outOfStock && <Text style={styles.outOfStockText}>Out of Stock</Text>}
           <Text style={styles.price}>₱{item.price}</Text>
           <View style={styles.quantityContainer}>
-            <TouchableOpacity onPress={() => updateQuantity(item.id, 'dec')} disabled={item.quantity <= 1 || outOfStock}>
-              <MaterialCommunityIcons name="minus-circle" size={28} color={item.quantity <= 1 || outOfStock ? '#ccc' : '#D6003A'} />
+            <TouchableOpacity
+              onPress={() => updateQuantity(item.variantId, 'dec')}
+              disabled={item.quantity <= 1 || outOfStock}
+            >
+              <MaterialCommunityIcons
+                name="minus-circle"
+                size={28}
+                color={item.quantity <= 1 || outOfStock ? '#ccc' : '#D6003A'}
+              />
             </TouchableOpacity>
             <Text style={styles.quantityText}>{item.quantity}</Text>
-            <TouchableOpacity onPress={() => updateQuantity(item.id, 'inc')} disabled={item.quantity >= item.stock || outOfStock}>
-              <MaterialCommunityIcons name="plus-circle" size={28} color={item.quantity >= item.stock || outOfStock ? '#ccc' : '#198754'} />
+            <TouchableOpacity
+              onPress={() => updateQuantity(item.variantId, 'inc')}
+              disabled={item.quantity >= item.stock || outOfStock}
+            >
+              <MaterialCommunityIcons
+                name="plus-circle"
+                size={28}
+                color={item.quantity >= item.stock || outOfStock ? '#ccc' : '#198754'}
+              />
             </TouchableOpacity>
           </View>
         </View>
-        <IconButton icon="trash-can" iconColor="#dc3545" size={28} onPress={() => removeItem(item.id)} />
+
+        <IconButton
+          icon="trash-can"
+          iconColor="#dc3545"
+          size={28}
+          onPress={() => removeItem(item.variantId)}
+        />
       </View>
     );
   };
@@ -180,12 +240,32 @@ const Cart: React.FC = () => {
     <View style={styles.container}>
       {items.length ? (
         <>
-          <FlatList data={items} keyExtractor={i => i.id.toString()} renderItem={renderItem} ListHeaderComponent={renderHeader} contentContainerStyle={styles.list} />
+          <FlatList
+            data={items}
+            keyExtractor={item => item.variantId.toString()}
+            renderItem={renderItem}
+            ListHeaderComponent={renderHeader}
+            contentContainerStyle={styles.list}
+          />
           <View style={styles.footer}>
             <Text style={styles.totalText}>Total: ₱{calculateTotal(items)}</Text>
             <View style={styles.checkoutButtonsContainer}>
-              <Button mode="contained" onPress={() => handleCheckout(true)} style={styles.checkoutButton} textColor="#DD2222">Checkout Selected</Button>
-              <Button mode="contained" onPress={() => handleCheckout(false)} style={styles.checkoutButton} textColor="#DD2222">Checkout All</Button>
+              <Button
+                mode="contained"
+                onPress={() => handleCheckout(true)}
+                style={styles.checkoutButton}
+                textColor="#DD2222"
+              >
+                Checkout Selected
+              </Button>
+              <Button
+                mode="contained"
+                onPress={() => handleCheckout(false)}
+                style={styles.checkoutButton}
+                textColor="#DD2222"
+              >
+                Checkout All
+              </Button>
             </View>
           </View>
         </>
@@ -211,10 +291,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  selectionText: {
-    fontSize: 16,
-    color: '#333',
-  },
+  selectionText: { fontSize: 16, color: '#333' },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -224,23 +301,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     elevation: 2,
   },
-  outOfStockCard: {
-    opacity: 0.5,
-  },
-  selectionWrapper: {
-    marginRight: 10,
-  },
-  unavailableText: {
-    fontSize: 16,
-    color: '#ccc',
-    marginRight: 10,
-  },
-  outOfStockText: {
-    color: '#dc3545',
-    fontWeight: 'bold',
-    marginBottom: 4,
-    fontSize: 14,
-  },
+  outOfStockCard: { opacity: 0.5 },
+  selectionWrapper: { marginRight: 10 },
+  unavailableText: { fontSize: 16, color: '#ccc', marginRight: 10 },
   productImage: {
     width: screenWidth * 0.2,
     height: screenWidth * 0.2,
@@ -249,6 +312,12 @@ const styles = StyleSheet.create({
   productDetails: { flex: 1, marginLeft: 15 },
   productName: { fontSize: 16, fontWeight: 'bold' },
   price: { color: '#D6003A', fontSize: 16, fontWeight: 'bold' },
+  outOfStockText: {
+    color: '#dc3545',
+    fontWeight: 'bold',
+    marginBottom: 4,
+    fontSize: 14,
+  },
   quantityContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -271,27 +340,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-evenly',
     width: '100%',
   },
-  checkoutButton: {
-    backgroundColor: '#fff',
-    paddingVertical: 8,
-    width: '45%',
-  },
+  checkoutButton: { backgroundColor: '#fff', paddingVertical: 8, width: '45%' },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  linkText: {
-    fontSize: 16,
-    color: '#DD2222',
-    textDecorationLine: 'underline',
-  },
+  emptyText: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
+  linkText: { fontSize: 16, color: '#DD2222', textDecorationLine: 'underline' },
 });
 
 export default Cart;

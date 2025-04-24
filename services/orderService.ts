@@ -23,10 +23,9 @@ export interface Order {
   };
 }
 
-/**
- * Base URL for the backend API.
- */
-const BASE_URL = "https://07b5bd714b71.ngrok.app/api";
+import { API } from "@/services/config";
+
+const BASE_URL = `${API}`
 
 /**
  * Fetches orders from the backend.
@@ -82,7 +81,7 @@ export async function createOrder(
   total: number,
   mopId: number,
   addressId: number,
-  orderItems: { productId: number; quantity: number; price: number }[]
+  orderItems: { productVariantId: number; quantity: number; price: number }[]
 ): Promise<Order> {
   const response = await fetch(`${BASE_URL}/orders`, {
     method: "POST",

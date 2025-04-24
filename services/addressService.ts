@@ -1,6 +1,7 @@
 import { getUserInfoField } from "@/utils/profileUtil";
+import { API } from "@/services/config";
 
-const API_BASE_URL = "https://07b5bd714b71.ngrok.app/api/address";
+const API_BASE_URL = `${API}/address`;
 
 class AddressService {
   // Create a new address

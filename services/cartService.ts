@@ -1,6 +1,8 @@
 import { CartItem } from '@/utils/cartStorage';
 import { getUserInfoField } from '@/utils/profileUtil';
-const API_URL = 'https://07b5bd714b71.ngrok.app/api/cart';
+import { API } from "@/services/config";
+
+const API_URL = `${API}/cart`;
 
 export const syncCartWithBackend = async (cartItems: CartItem[]): Promise<void> => {
   const userId = await getUserInfoField('id');

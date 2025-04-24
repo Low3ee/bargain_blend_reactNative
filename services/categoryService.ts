@@ -1,3 +1,5 @@
+import { API } from "@/services/config";
+
 export interface Category {
     id: number;
     name: string;
@@ -7,12 +9,12 @@ export interface Category {
     updatedBy: number;
 }
 
-const BASE_URL = 'https://07b5bd714b71.ngrok.app/api/category'; // Replace with your actual API URL
+const API_URL = `${API}/category`;
   
 export const categoryService = {
     async getCategories(): Promise<Category[]> {
         try {
-            const response = await fetch(`${BASE_URL}/`);
+            const response = await fetch(`${API_URL}/`);
             if (!response.ok) {
                 throw new Error('Failed to fetch categories');
             }

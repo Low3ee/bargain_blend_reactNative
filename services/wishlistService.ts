@@ -1,6 +1,7 @@
 import { getProfileDetails, getToken, getUserInfoField } from '@/utils/profileUtil';
+import { API } from "@/services/config";
 
-const BASE_URL = 'https://07b5bd714b71.ngrok.app/api';
+const BASE_URL = `${API}/wishlist`;
 
 export async function getWishlist(): Promise<any[]> {
   try {

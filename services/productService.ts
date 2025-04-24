@@ -24,10 +24,10 @@ export interface Product {
   }>;
   variants: Variant[];
 }
+import { API } from "@/services/config";
 
-// src/app/services/productService.ts
-const BASE_URL = "https://07b5bd714b71.ngrok.app/api";
-const IMAGE_BASE_URL = "https://07b5bd714b71.ngrok.app/uploads";
+const BASE_URL = `${API}`;
+const IMAGE_BASE_URL = `${API}/uploads`;
 const BYPASS_TUNNEL_HEADER = "ngrok-skip-browser-warning";
 const HEADER_VALUE = "your-custom-value";
 
@@ -64,6 +64,7 @@ export async function getProduct(id: string): Promise<Product> {
 export async function getProductStock(id: string): Promise<number> {
   try {
     const { stock } = await fetchJson<{ stock: number }>(`${BASE_URL}/products/stock/${id}`);
+    console.log("Stock:", stock);
     return stock;
   } catch {
     return 0;

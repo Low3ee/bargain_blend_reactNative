@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API } from "@/services/config";
 
 // Define the AuthResponse interface
 interface AuthResponse {
@@ -15,7 +16,8 @@ interface AuthResponse {
   };
 }
 
-const BASE_URL = "https://07b5bd714b71.ngrok.app/api";
+
+const BASE_URL = `${API}`
 
 // Check if it's a web environment or React Native
 const isWeb = Platform.OS === 'web';

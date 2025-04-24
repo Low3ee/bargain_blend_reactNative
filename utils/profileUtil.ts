@@ -7,6 +7,7 @@ const isWeb = Platform.OS === 'web';
 // Async wrapper for web localStorage getItem
 const webGetItem = async (key: string): Promise<string | null> => {
   try {
+    console.log("checking", localStorage.getItem(key));
     return localStorage.getItem(key);
   } catch (error) {
     console.error(`Error getting "${key}" from localStorage:`, error);
