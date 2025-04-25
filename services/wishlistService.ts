@@ -1,7 +1,7 @@
 import { getProfileDetails, getToken, getUserInfoField } from '@/utils/profileUtil';
 import { API } from "@/services/config";
 
-const BASE_URL = `${API}/wishlist`;
+const BASE_URL = `${API}/favorites`;
 
 export async function getWishlist(): Promise<any[]> {
   try {
@@ -12,7 +12,7 @@ export async function getWishlist(): Promise<any[]> {
 
     const userId = userInfo.id;
 
-    const response = await fetch(`${BASE_URL}/favorites/${userId}`, {
+    const response = await fetch(`${BASE_URL}/${userId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -64,7 +64,7 @@ export async function addToFavorite(productId: number): Promise<void> {
 
     const userId = userInfo.id;
 
-    const response = await fetch(`${BASE_URL}/favorites`, {
+    const response = await fetch(`${BASE_URL}/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

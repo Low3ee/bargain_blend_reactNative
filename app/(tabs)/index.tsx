@@ -7,9 +7,11 @@ import {
   Image,
   TouchableOpacity,
   Dimensions,
+  Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
+import { MaterialIcons, FontAwesome } from '@expo/vector-icons';
 import { getProducts, Product } from '@/services/productService';
 import { addToCartLocal, getCartItems, CartItem } from '@/utils/cartStorage';
 import Header from '@/components/Header';
@@ -18,27 +20,34 @@ import LoginRequiredModal from '@/components/LogInRequiredModal';
 
 const screenWidth = Dimensions.get('window').width;
 
+const COLORS = {
+  primary: '#F53F3FFF',
+  background: '#F2F2F2',
+  surface: '#FFFFFF',
+  error: '#B00020',
+  textPrimary: '#000000',
+  textSecondary: '#666666',
+  star: '#FFD700',
+};
+
 interface ImageItem {
   url: string;
   altText?: string;
   order: number;
 }
 
-// A simple inline carousel for images using FlatList
-const ImageCarousel: React.FC<{ images: ImageItem[]; style?: any }> = ({ images, style }) => {
-  return (
-    <FlatList
-      data={images.sort((a, b) => a.order - b.order)}
-      horizontal
-      pagingEnabled
-      showsHorizontalScrollIndicator={false}
-      keyExtractor={(item, index) => `${item.order}-${index}`}
-      renderItem={({ item }) => (
-        <Image source={{ uri: item.url }} style={[styles.productImage, style]} />
-      )}
-    />
-  );
-};
+const ImageCarousel: React.FC<{ images: ImageItem[]; style?: any }> = ({ images, style }) => (
+  <FlatList
+    data={images.sort((a, b) => a.order - b.order)}
+    horizontal
+    pagingEnabled
+    showsHorizontalScrollIndicator={false}
+    keyExtractor={(item, index) => `${item.order}-${index}`}
+    renderItem={({ item }) => (
+      <Image source={{ uri: item.url }} style={[styles.productImage, style]} />
+    )}
+  />
+);
 
 const ProductsScreen: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -54,9 +63,9 @@ const ProductsScreen: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const fetchedProducts = await getProducts();
-      setProducts(fetchedProducts);
-    } catch (err) {
+      const fetched = await getProducts();
+      setProducts(fetched);
+    } catch {
       setError('Failed to fetch products');
     } finally {
       setLoading(false);
@@ -64,8 +73,8 @@ const ProductsScreen: React.FC = () => {
   };
 
   const fetchCartItems = async () => {
-    const savedCartItems = await getCartItems();
-    setCartItems(savedCartItems);
+    const saved = await getCartItems();
+    setCartItems(saved);
   };
 
   useEffect(() => {
@@ -73,66 +82,69 @@ const ProductsScreen: React.FC = () => {
     fetchCartItems();
   }, []);
 
-  const availableProducts = showOutOfStock
-    ? products
-    : products.filter((product) => product.stock > 0);
-
+  const availableProducts = showOutOfStock ? products : products.filter(p => p.stock > 0);
   const filteredProducts = searchQuery.trim()
-    ? availableProducts.filter(
-        (p) =>
-          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.description.toLowerCase().includes(searchQuery.toLowerCase())
+    ? availableProducts.filter(p =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.description.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : availableProducts;
-
   const recommendedProducts = searchQuery.trim()
-    ? [...filteredProducts]
-        .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-        .slice(0, 4)
+    ? [...filteredProducts].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 4)
     : [];
 
-    const renderItem = ({ item }: { item: Product }) => {
-      const isOutOfStock = item.stock === 0;
-    
-      return (
-        <TouchableOpacity
-          style={[styles.productCard, isOutOfStock && styles.outOfStockCard]}
-          onPress={() => router.push(`/product/${item.id}`)}
-          disabled={isOutOfStock}
-        >
-          <Image source={{ uri: item.image }} style={styles.productImage} />
-          <Text style={styles.productName}>{item.name}</Text>
-          <Text style={styles.productPrice}>{`₱${item.price}`}</Text>
-          <Text style={styles.productRating}>⭐ {item.rating?.toFixed(1) || 'N/A'}</Text>
-          {isOutOfStock && <Text style={styles.outOfStockLabel}>Out of Stock</Text>}
-        </TouchableOpacity>
-      );
-    };
-    
-  const renderRecommendedItem = ({ item }: { item: Product }) => {
+  const renderItem = ({ item }: { item: Product }) => {
+    const isOut = item.stock === 0;
     return (
       <TouchableOpacity
-        style={styles.recommendationCard}
+        style={[styles.productCard, isOut && styles.outOfStockCard]}
         onPress={() => router.push(`/product/${item.id}`)}
+        disabled={isOut}
+        activeOpacity={0.8}
       >
-        {item.images && item.images.length > 1 ? (
-          <ImageCarousel images={item.images} style={styles.recommendationImage} />
-        ) : (
-          <Image source={{ uri: item.image }} style={styles.recommendationImage} />
-        )}
-        <Text style={styles.recommendationName}>{item.name}</Text>
+        <View style={styles.imageWrapper}>
+          <Image source={{ uri: item.image }} style={styles.productImage} />
+          {isOut && (
+            <View style={styles.overlay}>
+              <Text style={styles.overlayText}>Out of Stock</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.cardContent}>
+          <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+          <Text style={styles.productPrice}>{`₱${item.price}`}</Text>
+          <View style={styles.ratingRow}>
+            <FontAwesome name="star" size={14} color={COLORS.star} />
+            <Text style={styles.productRating}>{item.rating?.toFixed(1) || 'N/A'}</Text>
+          </View>
+        </View>
       </TouchableOpacity>
     );
   };
 
+  const renderRecommendedItem = ({ item }: { item: Product }) => (
+    <TouchableOpacity
+      style={styles.recommendationCard}
+      onPress={() => router.push(`/product/${item.id}`)}
+      activeOpacity={0.8}
+    >
+      {item.images && item.images.length > 1 ? (
+        <ImageCarousel images={item.images} style={styles.recommendationImage} />
+      ) : (
+        <Image source={{ uri: item.image }} style={styles.recommendationImage} />
+      )}
+      <Text style={styles.recommendationName} numberOfLines={2}>{item.name}</Text>
+    </TouchableOpacity>
+  );
+
   if (loading) {
     return (
       <View style={styles.container}>
-        <Header onSearch={(query) => setSearchQuery(query)} />
+        <Header onSearch={setSearchQuery} />
         <FlatList
-          data={[...Array(10)]}
+          data={Array.from({ length: 10 })}
           renderItem={() => <SkeletonLoader />}
-          keyExtractor={(item, index) => String(index)}
+          keyExtractor={(_, i) => String(i)}
         />
       </View>
     );
@@ -141,25 +153,26 @@ const ProductsScreen: React.FC = () => {
   if (error) {
     return (
       <View style={styles.container}>
-        <Header onSearch={(query) => setSearchQuery(query)} />
-        <Text>{error}</Text>
+        <Header onSearch={setSearchQuery} />
+        <Text style={styles.errorText}>{error}</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Header onSearch={(query) => setSearchQuery(query)} />
+      <Header onSearch={setSearchQuery} />
+
       <View style={styles.toggleContainer}>
-        <TouchableOpacity
-          style={styles.toggleButton}
-          onPress={() => setShowOutOfStock(prev => !prev)}
-        >
-          <Text style={styles.toggleText}>
-            {showOutOfStock ? 'Hide' : 'Show'} Out of Stock Products
-          </Text>
-        </TouchableOpacity>
+        <Text style={styles.toggleLabel}>{showOutOfStock ? 'Showing' : 'Hiding'} Out of Stock</Text>
+        <Switch
+          value={showOutOfStock}
+          onValueChange={setShowOutOfStock}
+          thumbColor={showOutOfStock ? COLORS.primary : '#ccc'}
+          trackColor={{ true: '#bb86fc', false: '#eee' }}
+        />
       </View>
+
       {searchQuery.trim() !== '' && recommendedProducts.length > 0 && (
         <View style={styles.recommendationContainer}>
           <Text style={styles.recommendationTitle}>Recommended Products</Text>
@@ -169,17 +182,20 @@ const ProductsScreen: React.FC = () => {
             keyExtractor={(item) => item.id.toString()}
             horizontal
             showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingLeft: 16 }}
           />
         </View>
       )}
+
       <FlatList
-        key={`products-2-${showOutOfStock}`}
         data={filteredProducts}
         renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
         numColumns={2}
-        columnWrapperStyle={styles.columnWrapperStyle}
+        columnWrapperStyle={styles.columnWrapper}
+        contentContainerStyle={styles.listContent}
       />
+
       <LoginRequiredModal visible={showLoginModal} onDismiss={() => setShowLoginModal(false)} />
       <Toast />
     </View>
@@ -187,96 +203,138 @@ const ProductsScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  columnWrapperStyle: {
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 8,
+  },
+  columnWrapper: {
     justifyContent: 'space-between',
-    marginBottom: 15,
+    marginBottom: 16,
+  },
+  imageWrapper: {
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: COLORS.surface,
   },
   productCard: {
     flex: 0.48,
-    marginBottom: 10,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    padding: 10,
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    marginBottom: 16,
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    // Android elevation
+    elevation: 3,
+  },
+  outOfStockCard: {
+    opacity: 0.6,
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  overlayText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.error,
   },
   productImage: {
     width: '100%',
-    height: 150,
-    resizeMode:"contain",
-    borderRadius: 8,
+    height: 140,
+    resizeMode: 'cover',
+  },
+  cardContent: {
+    padding: 12,
   },
   productName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    marginVertical: 5,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 6,
   },
   productPrice: {
-    color: 'red',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
+    color: COLORS.primary,
+    marginBottom: 6,
   },
-  productDescription: {
-    fontSize: 12,
-    color: '#777',
-    marginVertical: 5,
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  outOfStockCard: {
-    opacity: 0.5,
-  },
-  outOfStockLabel: {
-    color: '#888',
-    fontStyle: 'italic',
-    marginTop: 5,
+  productRating: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginLeft: 4,
   },
   toggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    alignItems: 'flex-end',
   },
-  toggleButton: {
-    backgroundColor: '#eee',
-    padding: 8,
-    borderRadius: 8,
-  },
-  toggleText: {
+  toggleLabel: {
     fontSize: 14,
-    color: '#333',
+    color: COLORS.textSecondary,
+    marginRight: 8,
+  },
+  errorText: {
+    color: COLORS.error,
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 16,
   },
   recommendationContainer: {
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    marginTop: 20,
   },
   recommendationTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 8,
-    color: '#333',
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+    paddingHorizontal: 16,
   },
   recommendationCard: {
-    marginRight: 10,
-    backgroundColor: '#f9f9f9',
-    borderRadius: 8,
-    padding: 8,
     width: screenWidth * 0.4,
-    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    marginRight: 16,
+    overflow: 'hidden',
+    // shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   recommendationImage: {
     width: '100%',
     height: 100,
-    borderRadius: 8,
+    resizeMode: 'cover',
   },
   recommendationName: {
+    padding: 8,
     fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 5,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
     textAlign: 'center',
   },
-  productRating: {
-    fontSize: 14,
-    color: '#555',
-    marginTop: 2,
-  },
-  
 });
 
 export default ProductsScreen;
