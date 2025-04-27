@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Switch,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
@@ -30,24 +31,12 @@ const COLORS = {
   star: '#FFD700',
 };
 
-interface ImageItem {
-  url: string;
-  altText?: string;
-  order: number;
+interface Filters {
+  price?: [number, number];
+  condition?: 'new' | 'used';
+  category?: string;
+  color?: string;
 }
-
-const ImageCarousel: React.FC<{ images: ImageItem[]; style?: any }> = ({ images, style }) => (
-  <FlatList
-    data={images.sort((a, b) => a.order - b.order)}
-    horizontal
-    pagingEnabled
-    showsHorizontalScrollIndicator={false}
-    keyExtractor={(item, index) => `${item.order}-${index}`}
-    renderItem={({ item }) => (
-      <Image source={{ uri: item.url }} style={[styles.productImage, style]} />
-    )}
-  />
-);
 
 const ProductsScreen: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -57,6 +46,8 @@ const ProductsScreen: React.FC = () => {
   const [showOutOfStock, setShowOutOfStock] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<Filters>({});
   const router = useRouter();
 
   const fetchProducts = async () => {
@@ -82,16 +73,34 @@ const ProductsScreen: React.FC = () => {
     fetchCartItems();
   }, []);
 
-  const availableProducts = showOutOfStock ? products : products.filter(p => p.stock > 0);
-  const filteredProducts = searchQuery.trim()
-    ? availableProducts.filter(p =>
+  // build pipeline
+  let pipeline = showOutOfStock
+    ? products
+    : products.filter((p) => p.stock > 0);
+
+  if (filters.price) {
+    const [min, max] = filters.price;
+    pipeline = pipeline.filter((p) => p.price >= min && p.price <= max);
+  }
+  if (filters.condition) {
+    pipeline = pipeline.filter((p) => p.condition === filters.condition);
+  }
+  if (filters.category) {
+    pipeline = pipeline.filter((p) => p.categoryId === filters.category);
+  }
+  if (filters.color) {
+    pipeline = pipeline.filter((p) => p.color === filters.color);
+  }
+
+  if (searchQuery.trim()) {
+    pipeline = pipeline.filter(
+      (p) =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.description.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : availableProducts;
-  const recommendedProducts = searchQuery.trim()
-    ? [...filteredProducts].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 4)
-    : [];
+    );
+  }
+
+  const filteredProducts = pipeline;
 
   const renderItem = ({ item }: { item: Product }) => {
     const isOut = item.stock === 0;
@@ -111,31 +120,20 @@ const ProductsScreen: React.FC = () => {
           )}
         </View>
         <View style={styles.cardContent}>
-          <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+          <Text style={styles.productName} numberOfLines={2}>
+            {item.name}
+          </Text>
           <Text style={styles.productPrice}>{`₱${item.price}`}</Text>
           <View style={styles.ratingRow}>
             <FontAwesome name="star" size={14} color={COLORS.star} />
-            <Text style={styles.productRating}>{item.rating?.toFixed(1) || 'N/A'}</Text>
+            <Text style={styles.productRating}>
+              {item.rating?.toFixed(1) || 'N/A'}
+            </Text>
           </View>
         </View>
       </TouchableOpacity>
     );
   };
-
-  const renderRecommendedItem = ({ item }: { item: Product }) => (
-    <TouchableOpacity
-      style={styles.recommendationCard}
-      onPress={() => router.push(`/product/${item.id}`)}
-      activeOpacity={0.8}
-    >
-      {item.images && item.images.length > 1 ? (
-        <ImageCarousel images={item.images} style={styles.recommendationImage} />
-      ) : (
-        <Image source={{ uri: item.image }} style={styles.recommendationImage} />
-      )}
-      <Text style={styles.recommendationName} numberOfLines={2}>{item.name}</Text>
-    </TouchableOpacity>
-  );
 
   if (loading) {
     return (
@@ -163,8 +161,19 @@ const ProductsScreen: React.FC = () => {
     <View style={styles.container}>
       <Header onSearch={setSearchQuery} />
 
+      {/* Welcome + Filters button */}
+      <View style={styles.titleRow}>
+        <Text style={styles.welcomeText}>Welcome!</Text>
+        <TouchableOpacity onPress={() => setShowFilters(true)}>
+          <Text style={styles.filterButtonText}>Filters</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Out-of-stock toggle */}
       <View style={styles.toggleContainer}>
-        <Text style={styles.toggleLabel}>{showOutOfStock ? 'Showing' : 'Hiding'} Out of Stock</Text>
+        <Text style={styles.toggleLabel}>
+          {showOutOfStock ? 'Showing' : 'Hiding'} Out of Stock
+        </Text>
         <Switch
           value={showOutOfStock}
           onValueChange={setShowOutOfStock}
@@ -173,20 +182,7 @@ const ProductsScreen: React.FC = () => {
         />
       </View>
 
-      {searchQuery.trim() !== '' && recommendedProducts.length > 0 && (
-        <View style={styles.recommendationContainer}>
-          <Text style={styles.recommendationTitle}>Recommended Products</Text>
-          <FlatList
-            data={recommendedProducts}
-            renderItem={renderRecommendedItem}
-            keyExtractor={(item) => item.id.toString()}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingLeft: 16 }}
-          />
-        </View>
-      )}
-
+      {/* Product grid */}
       <FlatList
         data={filteredProducts}
         renderItem={renderItem}
@@ -196,9 +192,129 @@ const ProductsScreen: React.FC = () => {
         contentContainerStyle={styles.listContent}
       />
 
-      <LoginRequiredModal visible={showLoginModal} onDismiss={() => setShowLoginModal(false)} />
+      <LoginRequiredModal
+        visible={showLoginModal}
+        onDismiss={() => setShowLoginModal(false)}
+      />
       <Toast />
+
+      {/* Filter Modal */}
+      <FilterModal
+        visible={showFilters}
+        onDismiss={() => setShowFilters(false)}
+        filters={filters}
+        onChange={setFilters}
+      />
     </View>
+  );
+};
+
+// --------- FilterModal Component ---------
+type FilterModalProps = {
+  visible: boolean;
+  onDismiss: () => void;
+  filters: Filters;
+  onChange: (newFilters: Filters) => void;
+};
+
+const FilterModal: React.FC<FilterModalProps> = ({
+  visible,
+  onDismiss,
+  filters,
+  onChange,
+}) => {
+  const [local, setLocal] = useState<Filters>(filters);
+
+  useEffect(() => {
+    if (visible) setLocal(filters);
+  }, [visible]);
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent
+      visible={visible}
+      onRequestClose={onDismiss}
+    >
+      <TouchableOpacity
+        style={styles.backdrop}
+        activeOpacity={1}
+        onPress={onDismiss}
+      />
+      <View style={styles.filterPanel}>
+        <View style={styles.filterHeader}>
+          <TouchableOpacity onPress={onDismiss}>
+            <MaterialIcons name="arrow-back-ios" size={24} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.filterTitle}>Filters</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        {/* Example toggles; swap for real pickers */}
+        <TouchableOpacity
+          style={styles.filterRow}
+          onPress={() =>
+            setLocal({
+              ...local,
+              price: local.price ? undefined : [0, 1000],
+            })
+          }
+        >
+          <Text>Price {local.price ? `[${local.price[0]}–${local.price[1]}]` : ''}</Text>
+          <MaterialIcons name="chevron-right" size={24} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.filterRow}
+          onPress={() =>
+            setLocal({
+              ...local,
+              condition:
+                local.condition === 'new' ? 'used' : 'new',
+            })
+          }
+        >
+          <Text>Condition {local.condition || ''}</Text>
+          <MaterialIcons name="chevron-right" size={24} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.filterRow}
+          onPress={() =>
+            setLocal({
+              ...local,
+              category: local.category === 'Shirts' ? undefined : 'Shirts',
+            })
+          }
+        >
+          <Text>Category {local.category || ''}</Text>
+          <MaterialIcons name="chevron-right" size={24} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.filterRow}
+          onPress={() =>
+            setLocal({
+              ...local,
+              color: local.color === 'Blue' ? undefined : 'Blue',
+            })
+          }
+        >
+          <Text>Color {local.color || ''}</Text>
+          <MaterialIcons name="chevron-right" size={24} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.applyButton}
+          onPress={() => {
+            onChange(local);
+            onDismiss();
+          }}
+        >
+          <Text style={styles.applyText}>See Items</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
   );
 };
 
@@ -207,10 +323,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  filterButtonText: {
+    color: COLORS.primary,
+    fontWeight: 'bold',
+  },
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 16,
-    paddingTop: 8,
+    paddingTop: 0,
   },
   columnWrapper: {
     justifyContent: 'space-between',
@@ -227,12 +356,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: 12,
     marginBottom: 16,
-    // iOS shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    // Android elevation
     elevation: 3,
   },
   outOfStockCard: {
@@ -300,40 +427,54 @@ const styles = StyleSheet.create({
     marginTop: 20,
     fontSize: 16,
   },
-  recommendationContainer: {
-    marginTop: 20,
+
+  // ---- filter modal styles ----
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
   },
-  recommendationTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.textPrimary,
-    marginBottom: 12,
-    paddingHorizontal: 16,
+  filterPanel: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#ccc',
+    paddingBottom: 32,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
-  recommendationCard: {
-    width: screenWidth * 0.4,
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    marginRight: 16,
-    overflow: 'hidden',
-    // shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  filterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#bbb',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
-  recommendationImage: {
-    width: '100%',
-    height: 100,
-    resizeMode: 'cover',
-  },
-  recommendationName: {
-    padding: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
+  filterTitle: {
+    flex: 1,
     textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#999',
+  },
+  applyButton: {
+    margin: 16,
+    backgroundColor: COLORS.primary,
+    borderRadius: 24,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  applyText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

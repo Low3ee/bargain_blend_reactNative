@@ -1,4 +1,3 @@
-// src/screens/Cart.tsx
 import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
@@ -8,9 +7,13 @@ import {
   TouchableOpacity,
   FlatList,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { IconButton, Button } from 'react-native-paper';
 import { MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
+import Toast from 'react-native-toast-message';
+import { router } from 'expo-router';
+
 import {
   getCartItems,
   updateCartItemQuantityLocal,
@@ -18,11 +21,10 @@ import {
 } from '@/utils/cartStorage';
 import { syncCartWithBackend } from '@/services/cartService';
 import { getProductStock } from '@/services/productService';
-import Toast from 'react-native-toast-message';
-import { router } from 'expo-router';
-import { getProfileDetails } from '@/utils/profileUtil';
+import { getToken } from '@/utils/profileUtil';
+import LoginRequiredModal from '@/components/LogInRequiredModal';
 
-const screenWidth = Dimensions.get('window').width;
+const { width: screenWidth } = Dimensions.get('window');
 
 type CartItemWithStock = {
   id: string;
@@ -40,28 +42,21 @@ type CartItemWithStock = {
 const Cart: React.FC = () => {
   const [items, setItems] = useState<CartItemWithStock[]>([]);
   const [selectedVariants, setSelectedVariants] = useState<number[]>([]);
+  const [checkingOut, setCheckingOut] = useState<'selected' | 'all' | null>(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
+    // load cart + stock on mount
     (async () => {
-      const isLoggedIn = await getProfileDetails();
-      if (!isLoggedIn) {
-        Toast.show({
-          type: 'error',
-          text1: 'Login Required',
-          text2: 'Please log in to view your cart.',
-        });
-        router.push('/authScreen');
-        return;
-      }
-  
-      const raw = await getCartItems(); // contains id
+      const raw = await getCartItems();
       const withStock = await Promise.all(
         raw.map(async item => ({
           ...item,
           stock: await getProductStock(item.variantId.toString()),
         }))
       );
-  
+
+      // auto‐adjust any over‐stocked
       const adjusted = await Promise.all(
         withStock.map(async item => {
           if (item.quantity > item.stock) {
@@ -76,14 +71,11 @@ const Cart: React.FC = () => {
           return item;
         })
       );
-  
-      console.log("adjusted cart items:", adjusted);
+
       setItems(adjusted);
       setSelectedVariants(adjusted.filter(i => i.stock > 0).map(i => i.variantId));
     })();
   }, []);
-  
-  
 
   const toggleSelectVariant = (variantId: number) => {
     setSelectedVariants(prev =>
@@ -97,16 +89,15 @@ const Cart: React.FC = () => {
     setItems(prev =>
       prev.map(item => {
         if (item.variantId !== variantId) return item;
-  
         const max = item.stock;
-        const currentQty = Number(item.quantity) || 1;
-        const newQty =
-          type === 'inc'
-            ? Math.min(currentQty + 1, max)
-            : Math.max(currentQty - 1, 1);
-  
-        if (newQty !== currentQty) {
-          updateCartItemQuantityLocal(variantId, newQty);
+        const current = item.quantity;
+        const nextQty = type === 'inc'
+          ? Math.min(current + 1, max)
+          : Math.max(current - 1, 1);
+
+        if (nextQty !== current) {
+          updateCartItemQuantityLocal(variantId, nextQty);
+          return { ...item, quantity: nextQty };
         } else if (type === 'inc') {
           Toast.show({
             type: 'info',
@@ -114,12 +105,22 @@ const Cart: React.FC = () => {
             text2: `Only ${max} available.`,
           });
         }
-  
-        return { ...item, quantity: newQty };
+        return item;
       })
     );
   };
-  
+
+  const confirmRemove = (variantId: number) => {
+    Alert.alert(
+      'Remove Item',
+      'Are you sure you want to remove this item from your cart?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => removeItem(variantId) },
+      ]
+    );
+  };
+
   const removeItem = async (variantId: number) => {
     await removeCartItemLocal(variantId);
     setItems(prev => prev.filter(i => i.variantId !== variantId));
@@ -130,16 +131,26 @@ const Cart: React.FC = () => {
   const calculateTotal = (data: CartItemWithStock[]) =>
     data.reduce((sum, i) => sum + i.price * i.quantity, 0).toFixed(2);
 
-  const handleCheckout = async (useSelected: boolean) => {
-    const toCheckout = useSelected
+  const handleCheckout = async (which: 'selected' | 'all') => {
+    setCheckingOut(which);
+
+    // check login
+    const token = await getToken();
+    if (!token) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    const toCheckout = which === 'selected'
       ? items.filter(i => selectedVariants.includes(i.variantId) && i.stock > 0)
       : items.filter(i => i.stock > 0);
 
     if (!toCheckout.length) {
       Toast.show({
         type: 'error',
-        text1: useSelected ? 'No items selected' : 'Cart is empty',
+        text1: which === 'selected' ? 'No items selected' : 'Cart is empty',
       });
+      setCheckingOut(null);
       return;
     }
 
@@ -158,16 +169,14 @@ const Cart: React.FC = () => {
       router.push('/checkout');
     } catch {
       Toast.show({ type: 'error', text1: 'Checkout Failed', text2: 'Try again later.' });
+    } finally {
+      setCheckingOut(null);
     }
   };
 
   const renderHeader = () => (
     <View style={styles.selectionHeader}>
-      <TouchableOpacity
-        onPress={() =>
-          setSelectedVariants(items.filter(i => i.stock > 0).map(i => i.variantId))
-        }
-      >
+      <TouchableOpacity onPress={() => setSelectedVariants(items.filter(i => i.stock > 0).map(i => i.variantId))}>
         <Text style={styles.selectionText}>Select All</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => setSelectedVariants([])}>
@@ -178,11 +187,11 @@ const Cart: React.FC = () => {
   );
 
   const renderItem = ({ item }: { item: CartItemWithStock }) => {
-    const outOfStock = item.stock === 0;
+    const out = item.stock === 0;
     return (
-      <View style={[styles.card, outOfStock && styles.outOfStockCard]}>
+      <View style={[styles.card, out && styles.outOfStockCard]}>
         <View style={styles.selectionWrapper}>
-          {outOfStock ? (
+          {out ? (
             <Text style={styles.unavailableText}>Unavailable</Text>
           ) : (
             <TouchableOpacity onPress={() => toggleSelectVariant(item.variantId)}>
@@ -199,28 +208,29 @@ const Cart: React.FC = () => {
 
         <View style={styles.productDetails}>
           <Text style={styles.productName}>{item.name}</Text>
-          {outOfStock && <Text style={styles.outOfStockText}>Out of Stock</Text>}
+          {out && <Text style={styles.outOfStockText}>Out of Stock</Text>}
           <Text style={styles.price}>₱{item.price}</Text>
+
           <View style={styles.quantityContainer}>
             <TouchableOpacity
               onPress={() => updateQuantity(item.variantId, 'dec')}
-              disabled={item.quantity <= 1 || outOfStock}
+              disabled={item.quantity <= 1 || out}
             >
               <MaterialCommunityIcons
                 name="minus-circle"
                 size={28}
-                color={item.quantity <= 1 || outOfStock ? '#ccc' : '#D6003A'}
+                color={item.quantity <= 1 || out ? '#ccc' : '#D6003A'}
               />
             </TouchableOpacity>
             <Text style={styles.quantityText}>{item.quantity}</Text>
             <TouchableOpacity
               onPress={() => updateQuantity(item.variantId, 'inc')}
-              disabled={item.quantity >= item.stock || outOfStock}
+              disabled={item.quantity >= item.stock || out}
             >
               <MaterialCommunityIcons
                 name="plus-circle"
                 size={28}
-                color={item.quantity >= item.stock || outOfStock ? '#ccc' : '#198754'}
+                color={item.quantity >= item.stock || out ? '#ccc' : '#198754'}
               />
             </TouchableOpacity>
           </View>
@@ -230,7 +240,7 @@ const Cart: React.FC = () => {
           icon="trash-can"
           iconColor="#dc3545"
           size={28}
-          onPress={() => removeItem(item.variantId)}
+          onPress={() => confirmRemove(item.variantId)}
         />
       </View>
     );
@@ -242,17 +252,20 @@ const Cart: React.FC = () => {
         <>
           <FlatList
             data={items}
-            keyExtractor={item => item.variantId.toString()}
+            keyExtractor={i => i.variantId.toString()}
             renderItem={renderItem}
             ListHeaderComponent={renderHeader}
             contentContainerStyle={styles.list}
           />
+
           <View style={styles.footer}>
             <Text style={styles.totalText}>Total: ₱{calculateTotal(items)}</Text>
             <View style={styles.checkoutButtonsContainer}>
               <Button
                 mode="contained"
-                onPress={() => handleCheckout(true)}
+                onPress={() => handleCheckout('selected')}
+                disabled={checkingOut !== null}
+                loading={checkingOut === 'selected'}
                 style={styles.checkoutButton}
                 textColor="#DD2222"
               >
@@ -260,7 +273,9 @@ const Cart: React.FC = () => {
               </Button>
               <Button
                 mode="contained"
-                onPress={() => handleCheckout(false)}
+                onPress={() => handleCheckout('all')}
+                disabled={checkingOut !== null}
+                loading={checkingOut === 'all'}
                 style={styles.checkoutButton}
                 textColor="#DD2222"
               >
@@ -277,6 +292,15 @@ const Cart: React.FC = () => {
           </TouchableOpacity>
         </View>
       )}
+
+      <LoginRequiredModal
+        visible={showLoginModal}
+        onDismiss={() => {
+          setShowLoginModal(false);
+          router.push('/authScreen');
+        }}
+      />
+
       <Toast />
     </View>
   );
@@ -284,7 +308,7 @@ const Cart: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  list: { paddingHorizontal: 15, paddingBottom: 80 },
+  list: { paddingHorizontal: 15, paddingBottom: 120 },
   selectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
